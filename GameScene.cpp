@@ -2,20 +2,20 @@
 
 #include <cmath>
 
-    namespace {
+namespace {
 
-	/// <summary>
-	/// AABB同士の交差判定
-	/// </summary>
-	bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
+/// <summary>
+/// AABB同士の交差判定
+/// </summary>
+bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
 
-		if (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z) {
+	if (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z) {
 
-			return true;
-		}
-
-		return false;
+		return true;
 	}
+
+	return false;
+}
 
 } // namespace
 
@@ -144,6 +144,7 @@ void GameScene::Initialize() {
 
 	debugCamera_->SetFarZ(1000.0f);
 
+	// プレイヤー生成
 	player_ = new Player();
 
 	KamataEngine::Vector3 playerPosition = mapChipField_->GetMapChipPositionByIndex(10, 16);
@@ -152,6 +153,52 @@ void GameScene::Initialize() {
 
 	player_->SetMapChipField(mapChipField_);
 
+	// 敵生成
+	SpawnEnemies();
+
+	//// 仮の生成処理。後で消す
+	// deathParticles_ = new DeathParticles();
+	// deathParticles_->Initialize(modelDeathParticle_, &camera_, playerPosition);
+
+	// カメラコントローラ
+	cameraController_ = new CameraController();
+	cameraController_->Initialize();
+
+	CameraController::Rect cameraArea = {
+	    0.0f,
+	    100.0f,
+	    0.0f,
+	    20.0f,
+	};
+
+	cameraController_->SetMovableArea(cameraArea);
+	cameraController_->SetTarget(player_);
+	cameraController_->Reset();
+
+	camera_.matView = cameraController_->GetCamera().matView;
+
+	camera_.matProjection = cameraController_->GetCamera().matProjection;
+
+	camera_.TransferMatrix();
+
+	// 天球
+	skydome_ = new Skydome();
+	skydome_->Initialize(modelSkydome_, &camera_);
+
+	// ブロック生成
+	GenerateBlocks();
+}
+
+void GameScene::SpawnEnemies() {
+
+	// 念のため既存の敵を全削除
+	for (Enemy* enemy : enemies_) {
+		delete enemy;
+	}
+
+	enemies_.clear();
+
+	// CSVの敵配置情報から敵を生成
 	for (const MapChipField::EnemySpawnData& enemyData : mapChipField_->GetEnemySpawnData()) {
 
 		Enemy* newEnemy = new Enemy();
@@ -168,34 +215,6 @@ void GameScene::Initialize() {
 
 		enemies_.push_back(newEnemy);
 	}
-
-	//// 仮の生成処理。後で消す
-	//deathParticles_ = new DeathParticles();
-
-	//deathParticles_->Initialize(modelDeathParticle_, &camera_, playerPosition);
-
-	cameraController_ = new CameraController();
-	cameraController_->Initialize();
-
-	CameraController::Rect cameraArea = {
-	    0.0f,
-	    100.0f,
-	    0.0f,
-	    20.0f,
-	};
-
-	cameraController_->SetMovableArea(cameraArea);
-	cameraController_->SetTarget(player_);
-	cameraController_->Reset();
-
-	camera_.matView = cameraController_->GetCamera().matView;
-	camera_.matProjection = cameraController_->GetCamera().matProjection;
-	camera_.TransferMatrix();
-
-	skydome_ = new Skydome();
-	skydome_->Initialize(modelSkydome_, &camera_);
-
-	GenerateBlocks();
 }
 
 void GameScene::GenerateBlocks() {
@@ -203,10 +222,12 @@ void GameScene::GenerateBlocks() {
 	worldTransformBlocks_.resize(MapChipField::kNumBlockVertical);
 
 	for (uint32_t i = 0; i < MapChipField::kNumBlockVertical; ++i) {
+
 		worldTransformBlocks_[i].resize(MapChipField::kNumBlockHorizontal);
 	}
 
 	for (uint32_t i = 0; i < MapChipField::kNumBlockVertical; ++i) {
+
 		for (uint32_t j = 0; j < MapChipField::kNumBlockHorizontal; ++j) {
 
 			if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kBlank) {
@@ -225,7 +246,82 @@ void GameScene::GenerateBlocks() {
 	}
 }
 
+void GameScene::ResetGame() {
+
+	// ========================================
+	// デバッグカメラをOFF
+	// ========================================
+
+	isDebugCameraActive_ = false;
+
+	// ========================================
+	// デスパーティクルをリセット
+	// ========================================
+
+	if (deathParticles_) {
+		delete deathParticles_;
+		deathParticles_ = nullptr;
+	}
+
+	// ========================================
+	// 敵を全削除
+	// ========================================
+
+	for (Enemy* enemy : enemies_) {
+		delete enemy;
+	}
+
+	enemies_.clear();
+
+	// ========================================
+	// プレイヤーを削除
+	// ========================================
+
+	delete player_;
+	player_ = nullptr;
+
+	// ========================================
+	// プレイヤーを初期位置に生成
+	// ========================================
+
+	KamataEngine::Vector3 playerPosition = mapChipField_->GetMapChipPositionByIndex(10, 16);
+
+	player_ = new Player();
+
+	player_->Initialize(model_, &camera_, playerPosition);
+
+	player_->SetMapChipField(mapChipField_);
+
+	// ========================================
+	// 敵を初期状態で再生成
+	// ========================================
+
+	SpawnEnemies();
+
+	// ========================================
+	// カメラをプレイヤーに設定し直す
+	// ========================================
+
+	cameraController_->SetTarget(player_);
+	cameraController_->Reset();
+
+	camera_.matView = cameraController_->GetCamera().matView;
+
+	camera_.matProjection = cameraController_->GetCamera().matProjection;
+
+	camera_.TransferMatrix();
+}
+
 void GameScene::Update() {
+
+	// ========================================
+	// Rキーでゲーム全体をリセット
+	// ========================================
+
+	if (KamataEngine::Input::GetInstance()->TriggerKey(DIK_R)) {
+		ResetGame();
+		return;
+	}
 
 #ifdef _DEBUG
 	if (KamataEngine::Input::GetInstance()->TriggerKey(DIK_TAB)) {
@@ -233,9 +329,17 @@ void GameScene::Update() {
 	}
 #endif
 
+	// ========================================
+	// プレイヤー更新
+	// ========================================
+
 	if (player_) {
 		player_->Update();
 	}
+
+	// ========================================
+	// 敵更新
+	// ========================================
 
 	for (Enemy* enemy : enemies_) {
 
@@ -244,7 +348,10 @@ void GameScene::Update() {
 		}
 	}
 
+	// ========================================
 	// 吸い込みが完了した敵を削除
+	// ========================================
+
 	for (auto it = enemies_.begin(); it != enemies_.end();) {
 
 		Enemy* enemy = *it;
@@ -255,21 +362,32 @@ void GameScene::Update() {
 
 			delete enemy;
 			it = enemies_.erase(it);
+
 		} else {
 
 			++it;
 		}
 	}
 
+	// ========================================
+	// デスパーティクル更新
+	// ========================================
 
-	// デスパーティクルが存在するなら更新
 	if (deathParticles_) {
 		deathParticles_->Update();
 	}
 
+	// ========================================
+	// 天球更新
+	// ========================================
+
 	if (skydome_) {
 		skydome_->Update();
 	}
+
+	// ========================================
+	// ブロック更新
+	// ========================================
 
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
@@ -282,6 +400,10 @@ void GameScene::Update() {
 			UpdateWorldTransform(*worldTransformBlock);
 		}
 	}
+
+	// ========================================
+	// カメラ更新
+	// ========================================
 
 	if (isDebugCameraActive_) {
 
@@ -304,10 +426,11 @@ void GameScene::Update() {
 		camera_.TransferMatrix();
 	}
 
+	// ========================================
+	// 当たり判定
+	// ========================================
+
 	CheckAllCollisions();
-
-	
-
 }
 
 void GameScene::CheckAllCollisions() {
@@ -359,13 +482,25 @@ void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) {
 
 void GameScene::Draw() {
 
+	// ========================================
+	// 天球
+	// ========================================
+
 	if (skydome_) {
 		skydome_->Draw();
 	}
 
+	// ========================================
+	// プレイヤー
+	// ========================================
+
 	if (player_) {
 		player_->Draw();
 	}
+
+	// ========================================
+	// 敵
+	// ========================================
 
 	for (Enemy* enemy : enemies_) {
 
@@ -374,10 +509,17 @@ void GameScene::Draw() {
 		}
 	}
 
-	// デスパーティクルが存在するなら描画
+	// ========================================
+	// デスパーティクル
+	// ========================================
+
 	if (deathParticles_) {
 		deathParticles_->Draw();
 	}
+
+	// ========================================
+	// ブロック
+	// ========================================
 
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
@@ -394,6 +536,10 @@ void GameScene::Draw() {
 
 GameScene::~GameScene() {
 
+	// ========================================
+	// ブロック解放
+	// ========================================
+
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
@@ -404,14 +550,25 @@ GameScene::~GameScene() {
 
 	worldTransformBlocks_.clear();
 
+	// ========================================
+	// 敵解放
+	// ========================================
+
 	for (Enemy* enemy : enemies_) {
 		delete enemy;
 	}
 
 	enemies_.clear();
 
-	// デスパーティクルの解放
+	// ========================================
+	// デスパーティクル解放
+	// ========================================
+
 	delete deathParticles_;
+
+	// ========================================
+	// その他解放
+	// ========================================
 
 	delete mapChipField_;
 	delete skydome_;
@@ -420,7 +577,6 @@ GameScene::~GameScene() {
 	delete debugCamera_;
 	delete modelEnemy_;
 
-	// デスパーティクル用3Dモデルデータの解放
 	delete modelDeathParticle_;
 
 	delete player_;

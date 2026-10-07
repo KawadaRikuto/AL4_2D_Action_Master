@@ -14,8 +14,8 @@
 #include <list>
 #include <vector>
 
-    // ゲームシーン
-    class GameScene {
+// ゲームシーン
+class GameScene {
 
 public:
 	~GameScene();
@@ -44,6 +44,16 @@ private:
 	/// 全ての当たり判定を行う
 	/// </summary>
 	void CheckAllCollisions();
+
+	/// <summary>
+	/// ゲーム全体を初期状態に戻す
+	/// </summary>
+	void ResetGame();
+
+	/// <summary>
+	/// 敵を初期状態で生成する
+	/// </summary>
+	void SpawnEnemies();
 
 private:
 	// 自キャラ用3Dモデルデータ
