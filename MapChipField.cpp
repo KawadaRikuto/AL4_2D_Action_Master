@@ -8,8 +8,7 @@
 namespace {
 
 std::map<std::string, MapChipType> mapChipTable = {
-    {"0", MapChipType::kBlank},
-    {"1", MapChipType::kBlock},
+    {"B0", MapChipType::kBlock},
 };
 
 } // namespace
@@ -18,6 +17,9 @@ void MapChipField::ResetMapChipData() {
 
 	// マップチップデータをリセット
 	mapChipData_.data.clear();
+
+	// 敵配置位置もリセット
+	enemyIndexes_.clear();
 
 	// 縦方向の要素数を設定
 	mapChipData_.data.resize(kNumBlockVertical);
@@ -62,15 +64,35 @@ void MapChipField::LoadMapChipCsv(const std::string& filePath) {
 			std::string word;
 			std::getline(lineStream, word, ',');
 
+			// ブロック
 			if (mapChipTable.contains(word)) {
 
 				mapChipData_.data[i][j] = mapChipTable[word];
+			}
+
+			// 敵
+			if (word == "E0" || word == "E1") {
+
+				IndexSet enemyIndex = {};
+				enemyIndex.xIndex = j;
+				enemyIndex.yIndex = i;
+
+				enemyIndexes_.push_back(enemyIndex);
 			}
 		}
 	}
 }
 
-MapChipType MapChipField::GetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex) { return mapChipData_.data[yIndex][xIndex]; }
+MapChipType MapChipField::GetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex) {
+
+	// 範囲外アクセスを防ぐ
+	if (xIndex >= kNumBlockHorizontal || yIndex >= kNumBlockVertical) {
+
+		return MapChipType::kBlank;
+	}
+
+	return mapChipData_.data[yIndex][xIndex];
+}
 
 KamataEngine::Vector3 MapChipField::GetMapChipPositionByIndex(uint32_t xIndex, uint32_t yIndex) {
 
@@ -117,4 +139,16 @@ MapChipField::Rect MapChipField::GetRectByIndex(uint32_t xIndex, uint32_t yIndex
 	rect.top = center.y + kBlockHeight / 2.0f;
 
 	return rect;
+}
+
+std::vector<KamataEngine::Vector3> MapChipField::GetEnemyPositions() {
+
+	std::vector<KamataEngine::Vector3> positions;
+
+	for (const IndexSet& enemyIndex : enemyIndexes_) {
+
+		positions.push_back(GetMapChipPositionByIndex(enemyIndex.xIndex, enemyIndex.yIndex));
+	}
+
+	return positions;
 }

@@ -56,7 +56,8 @@ public:
 	void LoadMapChipCsv(const std::string& filePath);
 
 	/// <summary>
-	/// 指定したマスのマップチップを取得
+	/// 指定したマスのマップチップを取得する
+	/// 範囲外の場合は空白を返す
 	/// </summary>
 	MapChipType GetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex);
 
@@ -75,6 +76,12 @@ public:
 	/// </summary>
 	Rect GetRectByIndex(uint32_t xIndex, uint32_t yIndex);
 
+	/// <summary>
+	/// 敵の配置位置を取得する
+	/// E0、E1の位置を返す
+	/// </summary>
+	std::vector<KamataEngine::Vector3> GetEnemyPositions();
+
 private:
 	// 1ブロックのサイズ
 	static inline const float kBlockWidth = 1.0f;
@@ -82,4 +89,7 @@ private:
 
 	// マップチップデータ
 	MapChipData mapChipData_;
+
+	// CSV内の敵配置位置
+	std::vector<IndexSet> enemyIndexes_;
 };

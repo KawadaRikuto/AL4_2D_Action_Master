@@ -2,26 +2,26 @@
 
 #include "Player.h"
 
+#include "Enemy.h"
 #include "MapChipField.h"
 #include "WorldTransformUpdate.h"
-#include "Enemy.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <numbers>
 
-namespace {
+    namespace {
 
-/// <summary>
-/// イーズイン・イーズアウト補間
-/// </summary>
-float EaseInOut(float start, float end, float t) {
+	/// <summary>
+	/// イーズイン・イーズアウト補間
+	/// </summary>
+	float EaseInOut(float start, float end, float t) {
 
-	t = t * t * (3.0f - 2.0f * t);
+		t = t * t * (3.0f - 2.0f * t);
 
-	return start + (end - start) * t;
-}
+		return start + (end - start) * t;
+	}
 
 } // namespace
 
@@ -43,6 +43,15 @@ void Player::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera
 
 	// 初期回転角を指定
 	worldTransform_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
+
+	// 吸い込み状態を初期化
+	isInhaling_ = false;
+
+	// 攻撃状態を初期化
+	isAttack_ = false;
+
+	// ノックバック状態を初期化
+	isKnockback_ = false;
 }
 
 void Player::InputMove() {
@@ -128,8 +137,14 @@ void Player::InputMove() {
 		velocity_.y -= kGravityAcceleration;
 
 		// 落下速度制限
-		velocity_.y = std::max(velocity_.y, -kLimitFallSpeed);
+		velocity_.y = (std::max)(velocity_.y, -kLimitFallSpeed);
 	}
+}
+
+void Player::InputInhale() {
+
+	// Zキーを押している間は吸い込み状態
+	isInhaling_ = KamataEngine::Input::GetInstance()->PushKey(DIK_Z);
 }
 
 KamataEngine::Vector3 Player::CornerPosition(const KamataEngine::Vector3& center, Corner corner) {
@@ -233,7 +248,7 @@ void Player::MapCollisionUp(CollisionMapInfo& info) {
 			MapChipField::Rect rect = mapChipField_->GetRectByIndex(indexSet.xIndex, indexSet.yIndex);
 
 			// ブロックの下面より下に収まるように移動量を修正
-			info.move.y = std::max(0.0f, info.move.y + rect.bottom - positionsNew[kLeftTop].y - kBlank);
+			info.move.y = (std::max)(0.0f, info.move.y + rect.bottom - positionsNew[kLeftTop].y - kBlank);
 
 			// 天井に当たったことを記録する
 			info.ceiling = true;
@@ -262,38 +277,67 @@ void Player::MapCollisionDown(CollisionMapInfo& info) {
 	}
 
 	MapChipType mapChipType;
-	MapChipType mapChipTypeNext;
 
 	// 真下の当たり判定を行う
 	bool hit = false;
 
+	// ============================================================
 	// 左下点の判定
-	MapChipField::IndexSet indexSet;
+	// ============================================================
 
-	indexSet = mapChipField_->GetMapChipIndexSetByPosition(positionsNew[kLeftBottom]);
+	MapChipField::IndexSet indexSet = mapChipField_->GetMapChipIndexSetByPosition(positionsNew[kLeftBottom]);
 
 	mapChipType = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex);
 
-	mapChipTypeNext = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex - 1);
+	// yIndex - 1 は yIndex == 0 のときアンダーフローするので、
+	// 0の場合は次のマップチップを調べない
+	if (indexSet.yIndex > 0) {
 
-	if (mapChipType == MapChipType::kBlock && mapChipTypeNext != MapChipType::kBlock) {
+		MapChipType mapChipTypeNext = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex - 1);
 
-		hit = true;
+		if (mapChipType == MapChipType::kBlock && mapChipTypeNext != MapChipType::kBlock) {
+
+			hit = true;
+		}
+
+	} else {
+
+		// マップ最下段の場合
+		if (mapChipType == MapChipType::kBlock) {
+			hit = true;
+		}
 	}
 
+	// ============================================================
 	// 右下点の判定
+	// ============================================================
+
 	indexSet = mapChipField_->GetMapChipIndexSetByPosition(positionsNew[kRightBottom]);
 
 	mapChipType = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex);
 
-	mapChipTypeNext = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex - 1);
+	// yIndex - 1 のアンダーフローを防止
+	if (indexSet.yIndex > 0) {
 
-	if (mapChipType == MapChipType::kBlock && mapChipTypeNext != MapChipType::kBlock) {
+		MapChipType mapChipTypeNext = mapChipField_->GetMapChipTypeByIndex(indexSet.xIndex, indexSet.yIndex - 1);
 
-		hit = true;
+		if (mapChipType == MapChipType::kBlock && mapChipTypeNext != MapChipType::kBlock) {
+
+			hit = true;
+		}
+
+	} else {
+
+		// マップ最下段の場合
+		if (mapChipType == MapChipType::kBlock) {
+			hit = true;
+		}
 	}
 
+	// ============================================================
 	// ブロックにヒット？
+	// ============================================================
+
 	if (hit) {
 
 		// めり込みを排除する方向に移動量を設定する
@@ -311,7 +355,7 @@ void Player::MapCollisionDown(CollisionMapInfo& info) {
 			MapChipField::Rect rect = mapChipField_->GetRectByIndex(indexSet.xIndex, indexSet.yIndex);
 
 			// ブロックの上面より上に収まるように移動量を修正
-			info.move.y = std::min(0.0f, info.move.y + rect.top - positionsNew[kLeftBottom].y + kBlank);
+			info.move.y = (std::min)(0.0f, info.move.y + rect.top - positionsNew[kLeftBottom].y + kBlank);
 
 			// 地面に当たったことを記録する
 			info.landing = true;
@@ -380,7 +424,7 @@ void Player::MapCollisionRight(CollisionMapInfo& info) {
 			MapChipField::Rect rect = mapChipField_->GetRectByIndex(indexSet.xIndex, indexSet.yIndex);
 
 			// ブロックの左面より左に収まるように移動量を修正
-			info.move.x = std::min(0.0f, info.move.x + rect.left - positionsNew[kRightTop].x - kBlank);
+			info.move.x = (std::min)(0.0f, info.move.x + rect.left - positionsNew[kRightTop].x - kBlank);
 
 			// 壁に当たったことを判定結果に記録する
 			info.hitWall = true;
@@ -449,9 +493,9 @@ void Player::MapCollisionLeft(CollisionMapInfo& info) {
 			MapChipField::Rect rect = mapChipField_->GetRectByIndex(indexSet.xIndex, indexSet.yIndex);
 
 			// ブロックの右面より右に収まるように移動量を修正
-			info.move.x = std::max(0.0f, info.move.x + rect.right - positionsNew[kLeftTop].x + kBlank);
+			info.move.x = (std::max)(0.0f, info.move.x + rect.right - positionsNew[kLeftTop].x + kBlank);
 
-			// 壁に当たったことを判定結果に記録する
+			// 壁に当たったことを記録する
 			info.hitWall = true;
 		}
 	}
@@ -565,7 +609,10 @@ void Player::Update() {
 	// ①移動入力
 	InputMove();
 
-	// ②移動量を加味して衝突判定する
+	// ②吸い込み入力
+	InputInhale();
+
+	// ③移動量を加味して衝突判定する
 
 	// 衝突情報を初期化
 	CollisionMapInfo collisionMapInfo;
@@ -576,19 +623,19 @@ void Player::Update() {
 	// マップ衝突判定
 	MapCollision(collisionMapInfo);
 
-	// ③判定結果を反映して移動させる
+	// ④判定結果を反映して移動させる
 	Move(collisionMapInfo);
 
-	// ④天井に接触している場合の処理
+	// ⑤天井に接触している場合の処理
 	CeilingCollision(collisionMapInfo);
 
-	// ⑤壁に接触している場合の処理
+	// ⑥壁に接触している場合の処理
 	WallCollision(collisionMapInfo);
 
-	// ⑥接地状態の切り替え処理
+	// ⑦接地状態の切り替え処理
 	SwitchGroundState(collisionMapInfo);
 
-	// ⑦旋回制御
+	// ⑧旋回制御
 	if (turnTimer_ > 0.0f) {
 
 		// 旋回タイマーを1/60秒だけカウントダウンする
@@ -612,7 +659,7 @@ void Player::Update() {
 		worldTransform_.rotation_.y = EaseInOut(turnFirstRotationY_, destinationRotationY, turnProgress);
 	}
 
-	// ⑧行列計算
+	// ⑨行列計算
 	UpdateWorldTransform(worldTransform_);
 }
 
@@ -622,7 +669,7 @@ void Player::Draw() {
 	model_->Draw(worldTransform_, *camera_);
 }
 
-KamataEngine::Vector3 Player::GetWorldPosition() {
+KamataEngine::Vector3 Player::GetWorldPosition() const {
 
 	// ワールド座標を入れる変数
 	KamataEngine::Vector3 worldPosition;
@@ -654,6 +701,34 @@ AABB Player::GetAABB() {
 	};
 
 	return aabb;
+}
+
+KamataEngine::Vector3 Player::GetInhalePosition() const {
+
+	KamataEngine::Vector3 inhalePosition = worldTransform_.translation_;
+
+	if (lrDirection_ == LRDirection::kRight) {
+		inhalePosition.x += kInhaleOffsetX;
+	} else {
+		inhalePosition.x -= kInhaleOffsetX;
+	}
+
+	inhalePosition.y += kInhaleOffsetY;
+
+	return inhalePosition;
+}
+
+void Player::RequestKnockback() {
+
+	isKnockback_ = true;
+
+	if (lrDirection_ == LRDirection::kRight) {
+		velocity_.x = -kKnockbackSpeed;
+	} else {
+		velocity_.x = kKnockbackSpeed;
+	}
+
+	velocity_.y = 0.25f;
 }
 
 void Player::OnCollision(const Enemy* enemy) {

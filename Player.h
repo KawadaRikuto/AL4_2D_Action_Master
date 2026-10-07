@@ -3,8 +3,8 @@
 #include "AABB.h"
 #include "KamataEngine.h"
 
-// 前方宣言
-class MapChipField;
+    // 前方宣言
+    class MapChipField;
 class Enemy;
 
 /// <summary>
@@ -46,7 +46,7 @@ public:
 	/// <summary>
 	/// ワールド座標を取得
 	/// </summary>
-	KamataEngine::Vector3 GetWorldPosition();
+	KamataEngine::Vector3 GetWorldPosition() const;
 
 	/// <summary>
 	/// AABBを取得
@@ -58,6 +58,30 @@ public:
 	/// </summary>
 	void OnCollision(const Enemy* enemy);
 
+	/// <summary>
+	/// 吸い込み中か取得
+	/// </summary>
+	bool IsInhaling() const { return isInhaling_; }
+
+	/// <summary>
+	/// 右を向いているか取得
+	/// </summary>
+	bool IsFacingRight() const { return lrDirection_ == LRDirection::kRight; }
+
+	/// <summary>
+	/// 吸い込み位置を取得
+	/// </summary>
+	KamataEngine::Vector3 GetInhalePosition() const;
+
+	/// <summary>
+	/// 攻撃中か取得
+	/// </summary>
+	bool IsAttack() const { return isAttack_; }
+
+	/// <summary>
+	/// ノックバックを要求
+	/// </summary>
+	void RequestKnockback();
 
 private:
 	// 左右
@@ -85,6 +109,8 @@ private:
 	};
 
 	void InputMove();
+	void InputInhale();
+
 	void MapCollision(CollisionMapInfo& info);
 	void MapCollisionUp(CollisionMapInfo& info);
 	void MapCollisionDown(CollisionMapInfo& info);
@@ -130,4 +156,28 @@ private:
 	static inline const float kGravityAcceleration = 0.05f;
 	static inline const float kLimitFallSpeed = 0.5f;
 	static inline const float kJumpAcceleration = 1.0f;
+
+	// ========================================
+	// 吸い込み
+	// ========================================
+
+	// 吸い込み中か
+	bool isInhaling_ = false;
+
+	// 吸い込み時の口元の位置
+	static inline const float kInhaleOffsetX = 0.7f;
+	static inline const float kInhaleOffsetY = 0.0f;
+
+	// ========================================
+	// 攻撃・ノックバック
+	// ========================================
+
+	// 攻撃中か
+	bool isAttack_ = false;
+
+	// ノックバック中か
+	bool isKnockback_ = false;
+
+	// ノックバック速度
+	static inline const float kKnockbackSpeed = 0.35f;
 };

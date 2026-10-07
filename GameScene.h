@@ -14,8 +14,8 @@
 #include <list>
 #include <vector>
 
-// ゲームシーン
-class GameScene {
+    // ゲームシーン
+    class GameScene {
 
 public:
 	~GameScene();
@@ -23,6 +23,16 @@ public:
 	void Initialize();
 	void Update();
 	void Draw();
+
+	/// <summary>
+	/// ガードエフェクトを生成
+	/// </summary>
+	void CreateGuardEffect(const KamataEngine::Vector3& position);
+
+	/// <summary>
+	/// ヒットエフェクトを生成
+	/// </summary>
+	void CreateHitEffect(const KamataEngine::Vector3& position);
 
 private:
 	/// <summary>

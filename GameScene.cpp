@@ -2,20 +2,20 @@
 
 #include <cmath>
 
-namespace {
+    namespace {
 
-/// <summary>
-/// AABB同士の交差判定
-/// </summary>
-bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
+	/// <summary>
+	/// AABB同士の交差判定
+	/// </summary>
+	bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
 
-	if (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z) {
+		if (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z) {
 
-		return true;
+			return true;
+		}
+
+		return false;
 	}
-
-	return false;
-}
 
 } // namespace
 
@@ -111,6 +111,7 @@ KamataEngine::Matrix4x4 MakeAffineMatrix(const KamataEngine::Vector3& scale, con
 	KamataEngine::Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotation.y);
 	KamataEngine::Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotation.z);
 	KamataEngine::Matrix4x4 translateMatrix = MakeTranslateMatrix(translation);
+
 	KamataEngine::Matrix4x4 rotateMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
 
 	return Multiply(Multiply(scaleMatrix, rotateMatrix), translateMatrix);
@@ -119,6 +120,7 @@ KamataEngine::Matrix4x4 MakeAffineMatrix(const KamataEngine::Vector3& scale, con
 void UpdateWorldTransform(KamataEngine::WorldTransform& worldTransform) {
 
 	worldTransform.matWorld_ = MakeAffineMatrix(worldTransform.scale_, worldTransform.rotation_, worldTransform.translation_);
+
 	worldTransform.TransferMatrix();
 }
 
@@ -139,6 +141,7 @@ void GameScene::Initialize() {
 	camera_.Initialize();
 
 	debugCamera_ = new KamataEngine::DebugCamera(KamataEngine::WinApp::kWindowWidth, KamataEngine::WinApp::kWindowHeight);
+
 	debugCamera_->SetFarZ(1000.0f);
 
 	player_ = new Player();
@@ -149,13 +152,12 @@ void GameScene::Initialize() {
 
 	player_->SetMapChipField(mapChipField_);
 
-	const int32_t kNumEnemies = 3;
+	// CSVから敵の配置位置を取得
+	std::vector<KamataEngine::Vector3> enemyPositions = mapChipField_->GetEnemyPositions();
 
-	for (int32_t i = 0; i < kNumEnemies; ++i) {
+	for (const KamataEngine::Vector3& enemyPosition : enemyPositions) {
 
 		Enemy* newEnemy = new Enemy();
-
-		KamataEngine::Vector3 enemyPosition = mapChipField_->GetMapChipPositionByIndex(10 + i * 5, 18);
 
 		newEnemy->Initialize(modelEnemy_, &camera_, enemyPosition);
 
@@ -203,13 +205,16 @@ void GameScene::GenerateBlocks() {
 		for (uint32_t j = 0; j < MapChipField::kNumBlockHorizontal; ++j) {
 
 			if (mapChipField_->GetMapChipTypeByIndex(j, i) == MapChipType::kBlank) {
+
 				continue;
 			}
 
 			worldTransformBlocks_[i][j] = new KamataEngine::WorldTransform();
+
 			worldTransformBlocks_[i][j]->Initialize();
 
 			KamataEngine::Vector3 blockPosition = mapChipField_->GetMapChipPositionByIndex(j, i);
+
 			worldTransformBlocks_[i][j]->translation_ = blockPosition;
 		}
 	}
@@ -228,10 +233,28 @@ void GameScene::Update() {
 	}
 
 	for (Enemy* enemy : enemies_) {
+
 		if (enemy) {
-			enemy->Update();
+			enemy->Update(player_);
 		}
 	}
+
+	// 吸い込みが完了した敵を削除
+	for (auto it = enemies_.begin(); it != enemies_.end();) {
+
+		Enemy* enemy = *it;
+
+		if (enemy && enemy->IsInhaleFinished()) {
+
+			delete enemy;
+			it = enemies_.erase(it);
+
+		} else {
+
+			++it;
+		}
+	}
+
 
 	// デスパーティクルが存在するなら更新
 	if (deathParticles_) {
@@ -243,6 +266,7 @@ void GameScene::Update() {
 	}
 
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
+
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
 
 			if (!worldTransformBlock) {
@@ -256,15 +280,21 @@ void GameScene::Update() {
 	if (isDebugCameraActive_) {
 
 		debugCamera_->Update();
+
 		camera_.matView = debugCamera_->GetCamera().matView;
+
 		camera_.matProjection = debugCamera_->GetCamera().matProjection;
+
 		camera_.TransferMatrix();
 
 	} else {
 
 		cameraController_->Update();
+
 		camera_.matView = cameraController_->GetCamera().matView;
+
 		camera_.matProjection = cameraController_->GetCamera().matProjection;
+
 		camera_.TransferMatrix();
 	}
 
@@ -286,16 +316,36 @@ void GameScene::CheckAllCollisions() {
 			continue;
 		}
 
+		// 吸い込まれている敵とは通常の衝突判定をしない
+		if (enemy->IsBeingInhaled()) {
+			continue;
+		}
+
 		aabb2 = enemy->GetAABB();
 
 		if (IsCollision(aabb1, aabb2)) {
 
 			player_->OnCollision(enemy);
+
 			enemy->OnCollision(player_);
 		}
 	}
 
 #pragma endregion
+}
+
+void GameScene::CreateGuardEffect(const KamataEngine::Vector3& position) {
+
+	// 現在はガードエフェクト用モデルがないため、
+	// 位置だけ受け取っておく。
+	(void)position;
+}
+
+void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) {
+
+	// 現在はヒットエフェクト用モデルがないため、
+	// 位置だけ受け取っておく。
+	(void)position;
 }
 
 void GameScene::Draw() {
@@ -309,6 +359,7 @@ void GameScene::Draw() {
 	}
 
 	for (Enemy* enemy : enemies_) {
+
 		if (enemy) {
 			enemy->Draw();
 		}
@@ -320,6 +371,7 @@ void GameScene::Draw() {
 	}
 
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
+
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
 
 			if (!worldTransformBlock) {
@@ -334,7 +386,9 @@ void GameScene::Draw() {
 GameScene::~GameScene() {
 
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
+
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
+
 			delete worldTransformBlock;
 		}
 	}
