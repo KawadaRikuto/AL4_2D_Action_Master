@@ -5,11 +5,11 @@
 #include <map>
 #include <sstream>
 
-namespace {
+    namespace {
 
-std::map<std::string, MapChipType> mapChipTable = {
-    {"B0", MapChipType::kBlock},
-};
+	std::map<std::string, MapChipType> mapChipTable = {
+	    {"B0", MapChipType::kBlock},
+	};
 
 } // namespace
 
@@ -18,8 +18,8 @@ void MapChipField::ResetMapChipData() {
 	// マップチップデータをリセット
 	mapChipData_.data.clear();
 
-	// 敵配置位置もリセット
-	enemyIndexes_.clear();
+	// 敵配置データもリセット
+	enemySpawnData_.clear();
 
 	// 縦方向の要素数を設定
 	mapChipData_.data.resize(kNumBlockVertical);
@@ -64,20 +64,39 @@ void MapChipField::LoadMapChipCsv(const std::string& filePath) {
 			std::string word;
 			std::getline(lineStream, word, ',');
 
-			// ブロック
+			// ブロックの読み込み
 			if (mapChipTable.contains(word)) {
 
 				mapChipData_.data[i][j] = mapChipTable[word];
 			}
 
-			// 敵
-			if (word == "E0" || word == "E1") {
+			// 敵の読み込み
+			if (word == "E0") {
 
-				IndexSet enemyIndex = {};
-				enemyIndex.xIndex = j;
-				enemyIndex.yIndex = i;
+				EnemySpawnData enemyData;
 
-				enemyIndexes_.push_back(enemyIndex);
+				enemyData.index = {
+				    j,
+				    i,
+				};
+
+				enemyData.type = 0;
+
+				enemySpawnData_.push_back(enemyData);
+			}
+
+			if (word == "E1") {
+
+				EnemySpawnData enemyData;
+
+				enemyData.index = {
+				    j,
+				    i,
+				};
+
+				enemyData.type = 1;
+
+				enemySpawnData_.push_back(enemyData);
 			}
 		}
 	}
@@ -131,24 +150,9 @@ MapChipField::Rect MapChipField::GetRectByIndex(uint32_t xIndex, uint32_t yIndex
 	Rect rect;
 
 	rect.left = center.x - kBlockWidth / 2.0f;
-
 	rect.right = center.x + kBlockWidth / 2.0f;
-
 	rect.bottom = center.y - kBlockHeight / 2.0f;
-
 	rect.top = center.y + kBlockHeight / 2.0f;
 
 	return rect;
-}
-
-std::vector<KamataEngine::Vector3> MapChipField::GetEnemyPositions() {
-
-	std::vector<KamataEngine::Vector3> positions;
-
-	for (const IndexSet& enemyIndex : enemyIndexes_) {
-
-		positions.push_back(GetMapChipPositionByIndex(enemyIndex.xIndex, enemyIndex.yIndex));
-	}
-
-	return positions;
 }

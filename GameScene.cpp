@@ -152,14 +152,19 @@ void GameScene::Initialize() {
 
 	player_->SetMapChipField(mapChipField_);
 
-	// CSVから敵の配置位置を取得
-	std::vector<KamataEngine::Vector3> enemyPositions = mapChipField_->GetEnemyPositions();
-
-	for (const KamataEngine::Vector3& enemyPosition : enemyPositions) {
+	for (const MapChipField::EnemySpawnData& enemyData : mapChipField_->GetEnemySpawnData()) {
 
 		Enemy* newEnemy = new Enemy();
 
-		newEnemy->Initialize(modelEnemy_, &camera_, enemyPosition);
+		KamataEngine::Vector3 enemyPosition = mapChipField_->GetMapChipPositionByIndex(enemyData.index.xIndex, enemyData.index.yIndex);
+
+		EnemyType enemyType = EnemyType::kNormal;
+
+		if (enemyData.type == 1) {
+			enemyType = EnemyType::kFire;
+		}
+
+		newEnemy->Initialize(modelEnemy_, &camera_, enemyPosition, enemyType);
 
 		enemies_.push_back(newEnemy);
 	}
@@ -246,9 +251,10 @@ void GameScene::Update() {
 
 		if (enemy && enemy->IsInhaleFinished()) {
 
+			player_->SetCopyAbility(enemy->GetEnemyType());
+
 			delete enemy;
 			it = enemies_.erase(it);
-
 		} else {
 
 			++it;
@@ -299,6 +305,9 @@ void GameScene::Update() {
 	}
 
 	CheckAllCollisions();
+
+	
+
 }
 
 void GameScene::CheckAllCollisions() {

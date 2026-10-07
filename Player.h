@@ -1,11 +1,11 @@
 #pragma once
 
 #include "AABB.h"
+#include "Enemy.h"
 #include "KamataEngine.h"
 
     // 前方宣言
     class MapChipField;
-class Enemy;
 
 /// <summary>
 /// 自キャラ
@@ -82,6 +82,20 @@ public:
 	/// ノックバックを要求
 	/// </summary>
 	void RequestKnockback();
+
+	// ========================================
+	// コピー能力
+	// ========================================
+
+	/// <summary>
+	/// コピー能力を設定
+	/// </summary>
+	void SetCopyAbility(EnemyType ability) { copyAbility_ = ability; }
+
+	/// <summary>
+	/// コピー能力を取得
+	/// </summary>
+	EnemyType GetCopyAbility() const { return copyAbility_; }
 
 private:
 	// 左右
@@ -180,4 +194,11 @@ private:
 
 	// ノックバック速度
 	static inline const float kKnockbackSpeed = 0.35f;
+
+	// ========================================
+	// コピー能力
+	// ========================================
+
+	// 現在のコピー能力
+	EnemyType copyAbility_ = EnemyType::kNormal;
 };

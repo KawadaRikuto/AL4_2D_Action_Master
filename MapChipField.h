@@ -6,13 +6,13 @@
 #include <string>
 #include <vector>
 
-/// <summary>
-/// マップチップの種類
-/// </summary>
-enum class MapChipType {
-	kBlank, // 空白
-	kBlock, // ブロック
-};
+    /// <summary>
+    /// マップチップの種類
+    /// </summary>
+    enum class MapChipType {
+	    kBlank, // 空白
+	    kBlock, // ブロック
+    };
 
 /// <summary>
 /// マップチップデータ
@@ -31,6 +31,12 @@ public:
 	struct IndexSet {
 		uint32_t xIndex;
 		uint32_t yIndex;
+	};
+
+	// 敵配置データ
+	struct EnemySpawnData {
+		IndexSet index;
+		int type;
 	};
 
 	// 範囲矩形
@@ -77,10 +83,9 @@ public:
 	Rect GetRectByIndex(uint32_t xIndex, uint32_t yIndex);
 
 	/// <summary>
-	/// 敵の配置位置を取得する
-	/// E0、E1の位置を返す
+	/// 敵の配置データを取得する
 	/// </summary>
-	std::vector<KamataEngine::Vector3> GetEnemyPositions();
+	const std::vector<EnemySpawnData>& GetEnemySpawnData() const { return enemySpawnData_; }
 
 private:
 	// 1ブロックのサイズ
@@ -90,6 +95,6 @@ private:
 	// マップチップデータ
 	MapChipData mapChipData_;
 
-	// CSV内の敵配置位置
-	std::vector<IndexSet> enemyIndexes_;
+	// CSV内の敵配置データ
+	std::vector<EnemySpawnData> enemySpawnData_;
 };

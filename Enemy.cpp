@@ -7,16 +7,16 @@
 #include <cmath>
 #include <numbers>
 
-    namespace {
+namespace {
 
-	/// <summary>
-	/// 線形補間
-	/// </summary>
-	float Lerp(float start, float end, float t) { return start + (end - start) * t; }
+/// <summary>
+/// 線形補間
+/// </summary>
+float Lerp(float start, float end, float t) { return start + (end - start) * t; }
 
 } // namespace
 
-void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position) {
+void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position, EnemyType type) {
 
 	// NULLポインタチェック
 	assert(model);
@@ -25,6 +25,9 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 	// 引数として受け取ったデータをメンバ変数に記録する
 	model_ = model;
 	camera_ = camera;
+
+	// 敵の種類を記録
+	enemyType_ = type;
 
 	// ワールドトランスフォームの初期化
 	worldTransform_.Initialize();
