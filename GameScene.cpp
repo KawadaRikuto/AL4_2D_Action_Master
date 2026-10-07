@@ -169,10 +169,10 @@ void GameScene::Initialize() {
 		enemies_.push_back(newEnemy);
 	}
 
-	// 仮の生成処理。後で消す
-	deathParticles_ = new DeathParticles();
+	//// 仮の生成処理。後で消す
+	//deathParticles_ = new DeathParticles();
 
-	deathParticles_->Initialize(modelDeathParticle_, &camera_, playerPosition);
+	//deathParticles_->Initialize(modelDeathParticle_, &camera_, playerPosition);
 
 	cameraController_ = new CameraController();
 	cameraController_->Initialize();
