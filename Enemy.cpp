@@ -1,3 +1,4 @@
+
 #include "Enemy.h"
 
 #include "Player.h"
@@ -9,183 +10,227 @@
 
 namespace {
 
-/// <summary>
-/// 線形補間
-/// </summary>
 float Lerp(float start, float end, float t) { return start + (end - start) * t; }
 
 } // namespace
 
 void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position, EnemyType type) {
 
-	// NULLポインタチェック
 	assert(model);
 	assert(camera);
 
-	// 引数として受け取ったデータをメンバ変数に記録する
 	model_ = model;
 	camera_ = camera;
-
-	// 敵の種類を記録
 	enemyType_ = type;
 
-	// ワールドトランスフォームの初期化
 	worldTransform_.Initialize();
-
-	// 初期座標を設定
 	worldTransform_.translation_ = position;
-
-	// 左方向を向くように初期回転角を設定
 	worldTransform_.rotation_.y = std::numbers::pi_v<float> * 3.0f / 2.0f;
 
-	// 速度を設定する
 	velocity_ = {-kWalkSpeed, 0.0f, 0.0f};
 
-	// 経過時間を初期化
 	walkTimer_ = 0.0f;
-
-	// 吸い込み状態を初期化
 	isBeingInhaled_ = false;
+	isHeld_ = false;
+	isSpitting_ = false;
+	spitParameter_ = 0;
 
-	// 吸い込み完了状態を初期化
-	isInhaleFinished_ = false;
+	UpdateWorldTransform(worldTransform_);
 }
 
 void Enemy::Update(const Player* player) {
 
-	// プレイヤーが存在する場合は吸い込み判定
+	// 吸い込み完了後は、口元に固定する。
+	// 通常移動や吸い込み判定は行わない。
+	if (isHeld_) {
+		if (player) {
+			UpdateHeldPosition(player);
+		}
+
+		velocity_ = {};
+		UpdateWorldTransform(worldTransform_);
+		return;
+	}
+
+	// 吐き出し中は、通常の歩行処理を行わない。
+	if (isSpitting_) {
+		UpdateSpit();
+		UpdateWorldTransform(worldTransform_);
+		return;
+	}
+
+	// 吸い込み判定
 	if (player) {
 		UpdateInhale(player);
 	}
 
-	// 吸い込まれている間は通常の移動をしない
-	if (!isBeingInhaled_) {
-
-		// 移動
-		worldTransform_.translation_.x += velocity_.x;
-		worldTransform_.translation_.y += velocity_.y;
-		worldTransform_.translation_.z += velocity_.z;
-
-		// タイマーを加算
-		walkTimer_ += 1.0f / 60.0f;
-
-		// サインカーブによる歩行アニメーション
-		float param = std::sin(2.0f * std::numbers::pi_v<float> * walkTimer_ / kWalkMotionTime);
-
-		// -1.0f～1.0fを0.0f～1.0fに変換
-		float t = (param + 1.0f) / 2.0f;
-
-		// 最初の角度と最後の角度を補間
-		float walkMotionAngle = Lerp(kWalkMotionAngleStart, kWalkMotionAngleEnd, t);
-
-		// 度をラジアンに変換してX軸回転を設定
-		worldTransform_.rotation_.x = walkMotionAngle * std::numbers::pi_v<float> / 180.0f;
+	// 吸い込み中は通常移動を完全に停止する。
+	// 口元への移動は UpdateInhale() 内だけで行う。
+	if (isBeingInhaled_) {
+		velocity_ = {};
+		UpdateWorldTransform(worldTransform_);
+		return;
 	}
 
-	// ワールド行列の更新
+	// 通常移動
+	worldTransform_.translation_.x += velocity_.x;
+	worldTransform_.translation_.y += velocity_.y;
+	worldTransform_.translation_.z += velocity_.z;
+
+	walkTimer_ += 1.0f / 60.0f;
+
+	float param = std::sin(2.0f * std::numbers::pi_v<float> * walkTimer_ / kWalkMotionTime);
+
+	float t = (param + 1.0f) / 2.0f;
+
+	float walkMotionAngle = Lerp(kWalkMotionAngleStart, kWalkMotionAngleEnd, t);
+
+	worldTransform_.rotation_.x = walkMotionAngle * std::numbers::pi_v<float> / 180.0f;
+
 	UpdateWorldTransform(worldTransform_);
 }
 
 void Enemy::UpdateInhale(const Player* player) {
 
-	// Zキーが押されていなければ吸い込み解除
+	// Zキーが押されている間だけ、新しい吸い込みを行う。
 	if (!player->IsInhaling()) {
 		isBeingInhaled_ = false;
-		isInhaleFinished_ = false;
 		return;
 	}
 
 	KamataEngine::Vector3 playerPosition = player->GetWorldPosition();
+
 	KamataEngine::Vector3 enemyPosition = GetWorldPosition();
 
-	// プレイヤーとの高さの差
 	float heightDifference = std::abs(enemyPosition.y - playerPosition.y);
 
-	// 高さが離れすぎている場合は対象外
 	if (heightDifference > kInhaleHeightRange) {
 		isBeingInhaled_ = false;
-		isInhaleFinished_ = false;
 		return;
 	}
 
-	// プレイヤーから敵までのX方向の距離
 	float distanceX = enemyPosition.x - playerPosition.x;
-
-	// プレイヤーの向いている方向
 	bool facingRight = player->IsFacingRight();
 
-	// 正面にいるか判定
 	bool isInFront = false;
 
 	if (facingRight) {
-
 		if (distanceX > 0.0f && distanceX <= kInhaleRange) {
 			isInFront = true;
 		}
-
 	} else {
-
 		if (distanceX < 0.0f && -distanceX <= kInhaleRange) {
 			isInFront = true;
 		}
 	}
 
-	// 正面にいなければ吸い込み対象外
 	if (!isInFront) {
 		isBeingInhaled_ = false;
-		isInhaleFinished_ = false;
 		return;
 	}
 
-	// 吸い込み対象にする
 	isBeingInhaled_ = true;
+	velocity_ = {};
 
-	// プレイヤーの口元を取得
 	KamataEngine::Vector3 targetPosition = player->GetInhalePosition();
 
-	// 口元までの距離
 	float differenceX = targetPosition.x - enemyPosition.x;
+
 	float differenceY = targetPosition.y - enemyPosition.y;
 
 	float distance = std::sqrt(differenceX * differenceX + differenceY * differenceY);
 
-	// 十分近づいたらそこで止める
+	// 口元に到達したら、その場で保持状態にする。
 	if (distance <= kInhaleStopDistance) {
-
 		worldTransform_.translation_.x = targetPosition.x;
 		worldTransform_.translation_.y = targetPosition.y;
+		worldTransform_.translation_.z = targetPosition.z;
 
+		isBeingInhaled_ = false;
+		isHeld_ = true;
 		velocity_ = {};
-
-		// 吸い込み完了
-		isInhaleFinished_ = true;
-
 		return;
 	}
 
-	// プレイヤーの口元方向へ移動
+	// 敵を口元へ移動させる。
+	// 通常移動は Update() 側で停止している。
 	if (distance > 0.0f) {
+		float moveX = differenceX / distance * kInhaleSpeed;
 
-		worldTransform_.translation_.x += differenceX / distance * kInhaleSpeed;
-		worldTransform_.translation_.y += differenceY / distance * kInhaleSpeed;
+		float moveY = differenceY / distance * kInhaleSpeed;
+
+		// 目標地点を通り越さないようにする。
+		if (std::abs(moveX) > std::abs(differenceX)) {
+			moveX = differenceX;
+		}
+
+		if (std::abs(moveY) > std::abs(differenceY)) {
+			moveY = differenceY;
+		}
+
+		worldTransform_.translation_.x += moveX;
+		worldTransform_.translation_.y += moveY;
+	}
+}
+
+void Enemy::UpdateHeldPosition(const Player* player) {
+
+	// プレイヤーが移動しても、敵を口元に保持する。
+	KamataEngine::Vector3 targetPosition = player->GetInhalePosition();
+
+	worldTransform_.translation_.x = targetPosition.x;
+	worldTransform_.translation_.y = targetPosition.y;
+	worldTransform_.translation_.z = targetPosition.z;
+}
+
+void Enemy::StartSpit(bool isFacingRight) {
+
+	if (!isHeld_) {
+		return;
 	}
 
-	// 通常の歩行速度を止める
-	velocity_ = {};
+	isHeld_ = false;
+	isBeingInhaled_ = false;
+	isSpitting_ = true;
+
+	spitParameter_ = 0;
+
+	velocity_.x = isFacingRight ? kSpitSpeed : -kSpitSpeed;
+	velocity_.y = kSpitUpSpeed;
+	velocity_.z = 0.0f;
+}
+
+void Enemy::UpdateSpit() {
+
+	worldTransform_.translation_.x += velocity_.x;
+	worldTransform_.translation_.y += velocity_.y;
+
+	// 吐き出された敵に重力を加える。
+	velocity_.y -= kGravity;
+
+	++spitParameter_;
+
+	if (spitParameter_ >= kSpitDuration) {
+		isSpitting_ = false;
+
+		// 吐き出し終了後は通常の歩行に戻す。
+		velocity_.x = -kWalkSpeed;
+		velocity_.y = 0.0f;
+		velocity_.z = 0.0f;
+	}
 }
 
 void Enemy::Draw() {
 
-	// 3Dモデルを描画
-	model_->Draw(worldTransform_, *camera_);
+	if (model_ && camera_) {
+		model_->Draw(worldTransform_, *camera_);
+	}
 }
 
 KamataEngine::Vector3 Enemy::GetWorldPosition() {
 
-	// ワールド座標を入れる変数
-	KamataEngine::Vector3 worldPosition;
+	KamataEngine::Vector3 worldPosition{};
 
-	// ワールド行列の平行移動成分を取得
 	worldPosition.x = worldTransform_.matWorld_.m[3][0];
 	worldPosition.y = worldTransform_.matWorld_.m[3][1];
 	worldPosition.z = worldTransform_.matWorld_.m[3][2];
@@ -197,7 +242,7 @@ AABB Enemy::GetAABB() {
 
 	KamataEngine::Vector3 worldPosition = GetWorldPosition();
 
-	AABB aabb;
+	AABB aabb{};
 
 	aabb.min = {
 	    worldPosition.x - kWidth / 2.0f,
