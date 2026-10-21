@@ -70,6 +70,11 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	fireDashParameter_ = 0;
 
 	spaceKeyPrevious_ = false;
+	meleeAttackTimer_ = 0;
+	projectileActive_ = false;
+	projectileTimer_ = 0;
+	projectileWorldTransform_.Initialize();
+	projectileWorldTransform_.scale_ = {0.35f, 0.35f, 0.35f};
 
 	objectColor_.Initialize();
 
@@ -99,6 +104,8 @@ void Player::Update() {
 	// 通常移動
 	// ========================================
 
+	UpdateMeleeAttack();
+	UpdateProjectile();
 	InputMove();
 
 	// 吸い込み
@@ -248,21 +255,89 @@ void Player::InputFireDash() {
 
 	bool spaceKeyNow = Input::GetInstance()->PushKey(DIK_SPACE);
 
-	// ファイヤー以外
-	if (copyAbility_ != EnemyType::kFire) {
-
-		spaceKeyPrevious_ = spaceKeyNow;
-
-		return;
-	}
-
-	// 押した瞬間だけ
+	// 押した瞬間だけコピー能力を発動
 	if (spaceKeyNow && !spaceKeyPrevious_) {
 
-		FireDashInitialize();
+		switch (copyAbility_) {
+		case EnemyType::kFire:
+			FireDashInitialize();
+			break;
+		case EnemyType::kNormal:
+			StartMeleeAttack();
+			break;
+		case EnemyType::kIce:
+			StartProjectile();
+			break;
+		}
 	}
 
 	spaceKeyPrevious_ = spaceKeyNow;
+}
+
+// ========================================
+// 近距離攻撃開始
+// ========================================
+
+void Player::StartMeleeAttack() {
+
+	meleeAttackTimer_ = kMeleeAttackDuration;
+	isAttack_ = true;
+}
+
+// ========================================
+// 近距離攻撃更新
+// ========================================
+
+void Player::UpdateMeleeAttack() {
+
+	if (meleeAttackTimer_ > 0) {
+		--meleeAttackTimer_;
+	}
+
+	if (fireDashPhase_ == FireDashPhase::kNone && meleeAttackTimer_ == 0) {
+		isAttack_ = false;
+	}
+}
+
+// ========================================
+// 遠距離攻撃開始
+// ========================================
+
+void Player::StartProjectile() {
+
+	if (projectileActive_) {
+		return;
+	}
+
+	projectileActive_ = true;
+	projectileTimer_ = 0;
+	projectileWorldTransform_.translation_ = worldTransform_.translation_;
+	projectileWorldTransform_.translation_.x += IsFacingRight() ? 0.8f : -0.8f;
+	projectileWorldTransform_.translation_.y += 0.1f;
+	projectileWorldTransform_.translation_.z = worldTransform_.translation_.z;
+	projectileWorldTransform_.rotation_ = {};
+	UpdateWorldTransform(projectileWorldTransform_);
+}
+
+// ========================================
+// 遠距離攻撃更新
+// ========================================
+
+void Player::UpdateProjectile() {
+
+	if (!projectileActive_) {
+		return;
+	}
+
+	projectileWorldTransform_.translation_.x += IsFacingRight() ? kProjectileSpeed : -kProjectileSpeed;
+	++projectileTimer_;
+
+	if (projectileTimer_ >= kProjectileDuration) {
+		projectileActive_ = false;
+		return;
+	}
+
+	UpdateWorldTransform(projectileWorldTransform_);
 }
 
 // ========================================
@@ -744,6 +819,14 @@ void Player::Draw() {
 	objectColor_.SetColor(color_);
 
 	model_->Draw(worldTransform_, *camera_, &objectColor_);
+
+	// 遠距離弾はプレイヤーモデルを小さくして表示する
+	if (projectileActive_) {
+		ObjectColor projectileColor;
+		projectileColor.Initialize();
+		projectileColor.SetColor({0.3f, 0.8f, 1.0f, 1.0f});
+		model_->Draw(projectileWorldTransform_, *camera_, &projectileColor);
+	}
 }
 
 // ========================================
@@ -773,6 +856,50 @@ AABB Player::GetAABB() {
 	aabb.max.z = worldTransform_.translation_.z + 0.5f;
 
 	return aabb;
+}
+
+// ========================================
+// コピー能力の攻撃判定
+// ========================================
+
+AABB Player::GetAbilityAABB() const {
+
+	if (projectileActive_) {
+		AABB aabb{};
+		aabb.min = {
+		    projectileWorldTransform_.translation_.x - kProjectileWidth / 2.0f,
+		    projectileWorldTransform_.translation_.y - kProjectileHeight / 2.0f,
+		    projectileWorldTransform_.translation_.z - 0.5f,
+		};
+		aabb.max = {
+		    projectileWorldTransform_.translation_.x + kProjectileWidth / 2.0f,
+		    projectileWorldTransform_.translation_.y + kProjectileHeight / 2.0f,
+		    projectileWorldTransform_.translation_.z + 0.5f,
+		};
+		return aabb;
+	}
+
+	AABB aabb = GetAABB();
+	float direction = IsFacingRight() ? 1.0f : -1.0f;
+	float range = (copyAbility_ == EnemyType::kFire) ? 1.25f : 1.0f;
+
+	if (direction > 0.0f) {
+		aabb.min.x = worldTransform_.translation_.x;
+		aabb.max.x = worldTransform_.translation_.x + range;
+	} else {
+		aabb.min.x = worldTransform_.translation_.x - range;
+		aabb.max.x = worldTransform_.translation_.x;
+	}
+
+	return aabb;
+}
+
+void Player::OnAbilityHit() {
+
+	// 弾は敵に命中した時点で消す
+	if (projectileActive_) {
+		projectileActive_ = false;
+	}
 }
 
 // ========================================
