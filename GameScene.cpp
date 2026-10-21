@@ -9,7 +9,6 @@ namespace {
 /// AABB同士の交差判定
 /// </summary>
 bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
-
 	return (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z);
 }
 
@@ -236,6 +235,7 @@ void GameScene::GenerateBlocks() {
 			}
 
 			worldTransformBlocks_[i][j] = new KamataEngine::WorldTransform();
+
 			worldTransformBlocks_[i][j]->Initialize();
 
 			KamataEngine::Vector3 blockPosition = mapChipField_->GetMapChipPositionByIndex(j, i);
@@ -317,7 +317,7 @@ void GameScene::Update() {
 	}
 
 	// ========================================
-	// 吸収・吐き出し・消滅処理
+	// 吸い込み・吐き出し・消滅処理
 	// ========================================
 
 	for (auto it = enemies_.begin(); it != enemies_.end();) {
@@ -413,6 +413,80 @@ void GameScene::Update() {
 
 void GameScene::CheckAllCollisions() {
 
+	// ========================================
+	// 吐き出した敵と、ほかの敵との衝突判定
+	// ========================================
+
+	for (auto spitIt = enemies_.begin(); spitIt != enemies_.end();) {
+
+		Enemy* spitEnemy = *spitIt;
+
+		if (!spitEnemy) {
+			spitIt = enemies_.erase(spitIt);
+			continue;
+		}
+
+		// 吐き出し中でなければ対象外
+		if (!spitEnemy->IsSpitting()) {
+			++spitIt;
+			continue;
+		}
+
+		AABB spitAABB = spitEnemy->GetAABB();
+		bool hitEnemy = false;
+
+		for (auto targetIt = enemies_.begin(); targetIt != enemies_.end();) {
+
+			Enemy* target = *targetIt;
+
+			if (!target) {
+				targetIt = enemies_.erase(targetIt);
+				continue;
+			}
+
+			// 自分自身とは衝突させない
+			if (target == spitEnemy) {
+				++targetIt;
+				continue;
+			}
+
+			// 吸い込み中・保持中・吐き出し中・消滅予定の敵は対象外
+			if (target->IsBeingInhaled() || target->IsHeld() || target->IsSpitting() || target->IsFinished()) {
+
+				++targetIt;
+				continue;
+			}
+
+			AABB targetAABB = target->GetAABB();
+
+			if (IsCollision(spitAABB, targetAABB)) {
+
+				// 当たった相手を削除
+				delete target;
+				targetIt = enemies_.erase(targetIt);
+
+				hitEnemy = true;
+				break;
+			}
+
+			++targetIt;
+		}
+
+		if (hitEnemy) {
+
+			// 相手に命中した吐き出し中の敵も削除
+			delete spitEnemy;
+			spitIt = enemies_.erase(spitIt);
+
+		} else {
+			++spitIt;
+		}
+	}
+
+	// ========================================
+	// プレイヤーと敵の衝突判定
+	// ========================================
+
 	if (!player_) {
 		return;
 	}
@@ -425,9 +499,10 @@ void GameScene::CheckAllCollisions() {
 			continue;
 		}
 
-		// 吸い込み中・口元で保持中・吐き出し中は
+		// 吸い込み中・保持中・吐き出し中・消滅予定の敵は
 		// プレイヤーとの衝突判定を行わない
-		if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting()) {
+		if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
+
 			continue;
 		}
 
@@ -508,6 +583,7 @@ GameScene::~GameScene() {
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
+
 			delete worldTransformBlock;
 		}
 	}
