@@ -73,6 +73,7 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	meleeAttackTimer_ = 0;
 	projectileActive_ = false;
 	projectileTimer_ = 0;
+	projectileDirection_ = 1.0f;
 	projectileWorldTransform_.Initialize();
 	projectileWorldTransform_.scale_ = {0.35f, 0.35f, 0.35f};
 
@@ -311,6 +312,7 @@ void Player::StartProjectile() {
 
 	projectileActive_ = true;
 	projectileTimer_ = 0;
+	projectileDirection_ = IsFacingRight() ? 1.0f : -1.0f;
 	projectileWorldTransform_.translation_ = worldTransform_.translation_;
 	projectileWorldTransform_.translation_.x += IsFacingRight() ? 0.8f : -0.8f;
 	projectileWorldTransform_.translation_.y += 0.1f;
@@ -329,7 +331,7 @@ void Player::UpdateProjectile() {
 		return;
 	}
 
-	projectileWorldTransform_.translation_.x += IsFacingRight() ? kProjectileSpeed : -kProjectileSpeed;
+	projectileWorldTransform_.translation_.x += projectileDirection_ * kProjectileSpeed;
 	++projectileTimer_;
 
 	if (projectileTimer_ >= kProjectileDuration) {
