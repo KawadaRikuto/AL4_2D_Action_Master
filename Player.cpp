@@ -839,7 +839,7 @@ Vector3 Player::GetWorldPosition() const { return worldTransform_.translation_; 
 // AABB取得
 // ========================================
 
-AABB Player::GetAABB() {
+AABB Player::GetAABB() const {
 
 	AABB aabb;
 
