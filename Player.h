@@ -30,6 +30,10 @@ public:
 	KamataEngine::Vector3 GetInhalePosition() const;
 
 	bool IsAttack() const { return isAttack_; }
+	bool IsAbilityAttackActive() const { return isAttack_ || projectileActive_; }
+	bool IsProjectileActive() const { return projectileActive_; }
+	AABB GetAbilityAABB() const;
+	void OnAbilityHit();
 
 	void RequestKnockback();
 
@@ -94,9 +98,13 @@ private:
 	// 角の座標
 	KamataEngine::Vector3 CornerPosition(const KamataEngine::Vector3& center, Corner corner);
 
-	// ファイヤー突進
+	// コピー能力
 	void FireDashInitialize();
 	void FireDashUpdate();
+	void UpdateMeleeAttack();
+	void UpdateProjectile();
+	void StartMeleeAttack();
+	void StartProjectile();
 
 private:
 	// ワールドトランスフォーム
@@ -191,4 +199,17 @@ private:
 
 	// SPACEキーの前フレーム状態
 	bool spaceKeyPrevious_ = false;
+
+	// 近距離攻撃
+	uint32_t meleeAttackTimer_ = 0;
+	static inline const uint32_t kMeleeAttackDuration = 8;
+
+	// 遠距離攻撃（簡易弾）
+	KamataEngine::WorldTransform projectileWorldTransform_;
+	bool projectileActive_ = false;
+	uint32_t projectileTimer_ = 0;
+	static inline const uint32_t kProjectileDuration = 60;
+	static inline const float kProjectileSpeed = 0.32f;
+	static inline const float kProjectileWidth = 0.45f;
+	static inline const float kProjectileHeight = 0.3f;
 };
