@@ -98,6 +98,21 @@ void MapChipField::LoadMapChipCsv(const std::string& filePath) {
 
 				enemySpawnData_.push_back(enemyData);
 			}
+
+			// E2: 遠距離攻撃（氷）能力を持つ敵
+			if (word == "E2") {
+
+				EnemySpawnData enemyData;
+
+				enemyData.index = {
+				    j,
+				    i,
+				};
+
+				enemyData.type = 2;
+
+				enemySpawnData_.push_back(enemyData);
+			}
 		}
 	}
 }
