@@ -206,6 +206,8 @@ void GameScene::SpawnEnemies() {
 
 		if (enemyData.type == 1) {
 			enemyType = EnemyType::kFire;
+		} else if (enemyData.type == 2) {
+			enemyType = EnemyType::kIce;
 		}
 
 		newEnemy->Initialize(modelEnemy_, &camera_, enemyPosition, enemyType);
