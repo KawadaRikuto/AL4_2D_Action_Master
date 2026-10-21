@@ -33,6 +33,7 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 	isBeingInhaled_ = false;
 	isHeld_ = false;
 	isSpitting_ = false;
+	isFinished_ = false;
 	spitParameter_ = 0;
 
 	UpdateWorldTransform(worldTransform_);
@@ -40,8 +41,7 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 
 void Enemy::Update(const Player* player) {
 
-	// 吸い込み完了後は、口元に固定する。
-	// 通常移動や吸い込み判定は行わない。
+	// 吸い込み完了後は口元に固定する
 	if (isHeld_) {
 		if (player) {
 			UpdateHeldPosition(player);
@@ -52,7 +52,7 @@ void Enemy::Update(const Player* player) {
 		return;
 	}
 
-	// 吐き出し中は、通常の歩行処理を行わない。
+	// 吐き出し中は通常の歩行処理を行わない
 	if (isSpitting_) {
 		UpdateSpit();
 		UpdateWorldTransform(worldTransform_);
@@ -64,8 +64,7 @@ void Enemy::Update(const Player* player) {
 		UpdateInhale(player);
 	}
 
-	// 吸い込み中は通常移動を完全に停止する。
-	// 口元への移動は UpdateInhale() 内だけで行う。
+	// 吸い込み中は通常移動を停止
 	if (isBeingInhaled_) {
 		velocity_ = {};
 		UpdateWorldTransform(worldTransform_);
@@ -77,6 +76,7 @@ void Enemy::Update(const Player* player) {
 	worldTransform_.translation_.y += velocity_.y;
 	worldTransform_.translation_.z += velocity_.z;
 
+	// 歩行アニメーション
 	walkTimer_ += 1.0f / 60.0f;
 
 	float param = std::sin(2.0f * std::numbers::pi_v<float> * walkTimer_ / kWalkMotionTime);
@@ -92,16 +92,16 @@ void Enemy::Update(const Player* player) {
 
 void Enemy::UpdateInhale(const Player* player) {
 
-	// Zキーが押されている間だけ、新しい吸い込みを行う。
+	// Zキーが押されている間だけ吸い込みを行う
 	if (!player->IsInhaling()) {
 		isBeingInhaled_ = false;
 		return;
 	}
 
 	KamataEngine::Vector3 playerPosition = player->GetWorldPosition();
-
 	KamataEngine::Vector3 enemyPosition = GetWorldPosition();
 
+	// 高さが離れすぎている場合は吸い込まない
 	float heightDifference = std::abs(enemyPosition.y - playerPosition.y);
 
 	if (heightDifference > kInhaleHeightRange) {
@@ -109,6 +109,7 @@ void Enemy::UpdateInhale(const Player* player) {
 		return;
 	}
 
+	// プレイヤーの前方に敵がいるか確認
 	float distanceX = enemyPosition.x - playerPosition.x;
 	bool facingRight = player->IsFacingRight();
 
@@ -132,15 +133,15 @@ void Enemy::UpdateInhale(const Player* player) {
 	isBeingInhaled_ = true;
 	velocity_ = {};
 
+	// プレイヤーの口元を目標にする
 	KamataEngine::Vector3 targetPosition = player->GetInhalePosition();
 
 	float differenceX = targetPosition.x - enemyPosition.x;
-
 	float differenceY = targetPosition.y - enemyPosition.y;
 
 	float distance = std::sqrt(differenceX * differenceX + differenceY * differenceY);
 
-	// 口元に到達したら、その場で保持状態にする。
+	// 口元に到達したら保持状態にする
 	if (distance <= kInhaleStopDistance) {
 		worldTransform_.translation_.x = targetPosition.x;
 		worldTransform_.translation_.y = targetPosition.y;
@@ -152,14 +153,12 @@ void Enemy::UpdateInhale(const Player* player) {
 		return;
 	}
 
-	// 敵を口元へ移動させる。
-	// 通常移動は Update() 側で停止している。
+	// 口元へ移動
 	if (distance > 0.0f) {
 		float moveX = differenceX / distance * kInhaleSpeed;
-
 		float moveY = differenceY / distance * kInhaleSpeed;
 
-		// 目標地点を通り越さないようにする。
+		// 目標地点を通り越さないようにする
 		if (std::abs(moveX) > std::abs(differenceX)) {
 			moveX = differenceX;
 		}
@@ -175,7 +174,7 @@ void Enemy::UpdateInhale(const Player* player) {
 
 void Enemy::UpdateHeldPosition(const Player* player) {
 
-	// プレイヤーが移動しても、敵を口元に保持する。
+	// プレイヤーが動いても敵を口元に保持する
 	KamataEngine::Vector3 targetPosition = player->GetInhalePosition();
 
 	worldTransform_.translation_.x = targetPosition.x;
@@ -185,6 +184,7 @@ void Enemy::UpdateHeldPosition(const Player* player) {
 
 void Enemy::StartSpit(bool isFacingRight) {
 
+	// 保持中の敵だけ吐き出せる
 	if (!isHeld_) {
 		return;
 	}
@@ -192,31 +192,27 @@ void Enemy::StartSpit(bool isFacingRight) {
 	isHeld_ = false;
 	isBeingInhaled_ = false;
 	isSpitting_ = true;
+	isFinished_ = false;
 
 	spitParameter_ = 0;
 
+	// プレイヤーが向いている方向へ水平に飛ばす
 	velocity_.x = isFacingRight ? kSpitSpeed : -kSpitSpeed;
-	velocity_.y = kSpitUpSpeed;
+	velocity_.y = 0.0f;
 	velocity_.z = 0.0f;
 }
 
 void Enemy::UpdateSpit() {
 
+	// X方向だけ移動させ、一直線に飛ばす
 	worldTransform_.translation_.x += velocity_.x;
-	worldTransform_.translation_.y += velocity_.y;
-
-	// 吐き出された敵に重力を加える。
-	velocity_.y -= kGravity;
 
 	++spitParameter_;
 
+	// 飛行時間が終わったら消滅フラグを立てる
 	if (spitParameter_ >= kSpitDuration) {
 		isSpitting_ = false;
-
-		// 吐き出し終了後は通常の歩行に戻す。
-		velocity_.x = -kWalkSpeed;
-		velocity_.y = 0.0f;
-		velocity_.z = 0.0f;
+		isFinished_ = true;
 	}
 }
 

@@ -103,13 +103,9 @@ KamataEngine::Matrix4x4 MakeTranslateMatrix(const KamataEngine::Vector3& transla
 KamataEngine::Matrix4x4 MakeAffineMatrix(const KamataEngine::Vector3& scale, const KamataEngine::Vector3& rotation, const KamataEngine::Vector3& translation) {
 
 	KamataEngine::Matrix4x4 scaleMatrix = MakeScaleMatrix(scale);
-
 	KamataEngine::Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotation.x);
-
 	KamataEngine::Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotation.y);
-
 	KamataEngine::Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotation.z);
-
 	KamataEngine::Matrix4x4 translateMatrix = MakeTranslateMatrix(translation);
 
 	KamataEngine::Matrix4x4 rotateMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
@@ -228,7 +224,6 @@ void GameScene::GenerateBlocks() {
 	worldTransformBlocks_.resize(MapChipField::kNumBlockVertical);
 
 	for (uint32_t i = 0; i < MapChipField::kNumBlockVertical; ++i) {
-
 		worldTransformBlocks_[i].resize(MapChipField::kNumBlockHorizontal, nullptr);
 	}
 
@@ -241,7 +236,6 @@ void GameScene::GenerateBlocks() {
 			}
 
 			worldTransformBlocks_[i][j] = new KamataEngine::WorldTransform();
-
 			worldTransformBlocks_[i][j]->Initialize();
 
 			KamataEngine::Vector3 blockPosition = mapChipField_->GetMapChipPositionByIndex(j, i);
@@ -323,7 +317,7 @@ void GameScene::Update() {
 	}
 
 	// ========================================
-	// 吸収・吐き出し処理
+	// 吸収・吐き出し・消滅処理
 	// ========================================
 
 	for (auto it = enemies_.begin(); it != enemies_.end();) {
@@ -335,7 +329,14 @@ void GameScene::Update() {
 			continue;
 		}
 
-		// 口元に保持している敵だけ操作する。
+		// 吐き出しの飛行時間が終わった敵を削除する
+		if (enemy->IsFinished()) {
+			delete enemy;
+			it = enemies_.erase(it);
+			continue;
+		}
+
+		// 口元に保持している敵だけ操作する
 		if (enemy->IsHeld()) {
 
 			// ↓キー：吸収してコピー能力を獲得
@@ -390,9 +391,7 @@ void GameScene::Update() {
 		debugCamera_->Update();
 
 		camera_.matView = debugCamera_->GetCamera().matView;
-
 		camera_.matProjection = debugCamera_->GetCamera().matProjection;
-
 		camera_.TransferMatrix();
 
 	} else {
@@ -400,9 +399,7 @@ void GameScene::Update() {
 		cameraController_->Update();
 
 		camera_.matView = cameraController_->GetCamera().matView;
-
 		camera_.matProjection = cameraController_->GetCamera().matProjection;
-
 		camera_.TransferMatrix();
 	}
 
@@ -429,7 +426,7 @@ void GameScene::CheckAllCollisions() {
 		}
 
 		// 吸い込み中・口元で保持中・吐き出し中は
-		// プレイヤーとの衝突判定を行わない。
+		// プレイヤーとの衝突判定を行わない
 		if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting()) {
 			continue;
 		}
@@ -449,13 +446,13 @@ void GameScene::CheckAllCollisions() {
 
 void GameScene::CreateGuardEffect(const KamataEngine::Vector3& position) {
 
-	// 現在はガードエフェクト用モデルがない。
+	// 現在はガードエフェクト用モデルがない
 	(void)position;
 }
 
 void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) {
 
-	// 現在はヒットエフェクト用モデルがない。
+	// 現在はヒットエフェクト用モデルがない
 	(void)position;
 }
 
@@ -511,7 +508,6 @@ GameScene::~GameScene() {
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
-
 			delete worldTransformBlock;
 		}
 	}
