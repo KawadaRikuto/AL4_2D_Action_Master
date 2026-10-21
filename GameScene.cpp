@@ -484,12 +484,42 @@ void GameScene::CheckAllCollisions() {
 	}
 
 	// ========================================
-	// プレイヤーと敵の衝突判定
+	// コピー能力と敵の衝突判定
 	// ========================================
 
 	if (!player_) {
 		return;
 	}
+
+	if (player_->IsAbilityAttackActive()) {
+		AABB abilityAABB = player_->GetAbilityAABB();
+
+		for (auto it = enemies_.begin(); it != enemies_.end();) {
+			Enemy* enemy = *it;
+
+			if (!enemy || enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
+				++it;
+				continue;
+			}
+
+			if (IsCollision(abilityAABB, enemy->GetAABB())) {
+				delete enemy;
+				it = enemies_.erase(it);
+
+				if (player_->IsProjectileActive()) {
+					player_->OnAbilityHit();
+					break;
+				}
+				continue;
+			}
+
+			++it;
+		}
+	}
+
+	// ========================================
+	// プレイヤーと敵の衝突判定
+	// ========================================
 
 	AABB playerAABB = player_->GetAABB();
 
