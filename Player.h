@@ -19,7 +19,7 @@ public:
 
 	KamataEngine::Vector3 GetWorldPosition() const;
 
-	AABB GetAABB();
+	AABB GetAABB() const;
 
 	void OnCollision(const Enemy* enemy);
 
