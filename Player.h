@@ -208,6 +208,7 @@ private:
 	KamataEngine::WorldTransform projectileWorldTransform_;
 	bool projectileActive_ = false;
 	uint32_t projectileTimer_ = 0;
+	float projectileDirection_ = 1.0f;
 	static inline const uint32_t kProjectileDuration = 60;
 	static inline const float kProjectileSpeed = 0.32f;
 	static inline const float kProjectileWidth = 0.45f;
