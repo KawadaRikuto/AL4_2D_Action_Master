@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "AABB.h"
@@ -8,6 +9,8 @@ class MapChipField;
 
 class Player {
 public:
+	~Player();
+
 	void Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position);
 	void Update();
 	void Draw();
@@ -98,12 +101,39 @@ private:
 	void FireDashInitialize();
 	void FireDashUpdate();
 
+	// OBJ歩行アニメーション
+	void UpdateAnimation();
+
 private:
 	// ワールドトランスフォーム
 	KamataEngine::WorldTransform worldTransform_;
 
-	// モデル
+	// 従来のモデル（読み込み失敗時の代替）
 	KamataEngine::Model* model_ = nullptr;
+
+	// ========================================
+	// OBJアニメーション用モデル
+	// ========================================
+
+	// WalkPlayer1：直立
+	KamataEngine::Model* idleModel_ = nullptr;
+
+	// WalkPlayer2：右足前
+	// WalkPlayer3：左足前
+	static constexpr int kWalkModelCount = 2;
+	KamataEngine::Model* walkModels_[kWalkModelCount] = {};
+
+	// 0：直立
+	// 1：右足前
+	// 2：直立
+	// 3：左足前
+	int animationIndex_ = 0;
+
+	// 現在のアニメーションフレーム
+	int animationFrame_ = 0;
+
+	// 1ポーズの表示フレーム数
+	static constexpr int kAnimationInterval = 6;
 
 	// カメラ
 	KamataEngine::Camera* camera_ = nullptr;

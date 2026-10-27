@@ -1,3 +1,4 @@
+
 #define NOMINMAX
 
 #include "Player.h"
@@ -8,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <numbers>
 
 using namespace KamataEngine;
@@ -40,6 +42,22 @@ float EaseOut(float start, float end, float t) {
 }
 
 } // namespace
+
+// ========================================
+// デストラクタ
+// ========================================
+
+Player::~Player() {
+
+	delete idleModel_;
+	idleModel_ = nullptr;
+
+	for (int i = 0; i < kWalkModelCount; ++i) {
+
+		delete walkModels_[i];
+		walkModels_[i] = nullptr;
+	}
+}
 
 // ========================================
 // 初期化
@@ -76,6 +94,22 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	color_ = {1.0f, 1.0f, 1.0f, 1.0f};
 
 	objectColor_.SetColor(color_);
+
+	// ========================================
+	// OBJアニメーションモデル読み込み
+	// ========================================
+
+	// 1：直立
+	idleModel_ = Model::CreateFromOBJ("WalkPlayer1", true);
+
+	// 2：右足前・左足後ろ
+	walkModels_[0] = Model::CreateFromOBJ("WalkPlayer2", true);
+
+	// 3：右足後ろ・左足前
+	walkModels_[1] = Model::CreateFromOBJ("WalkPlayer3", true);
+
+	animationIndex_ = 0;
+	animationFrame_ = 0;
 }
 
 // ========================================
@@ -91,6 +125,9 @@ void Player::Update() {
 	if (fireDashPhase_ != FireDashPhase::kNone) {
 
 		FireDashUpdate();
+
+		// 突進中は歩行アニメーションを停止
+		UpdateAnimation();
 
 		return;
 	}
@@ -148,6 +185,41 @@ void Player::Update() {
 	}
 
 	UpdateWorldTransform(worldTransform_);
+
+	// ========================================
+	// OBJアニメーション更新
+	// ========================================
+
+	UpdateAnimation();
+}
+
+// ========================================
+// OBJアニメーション更新
+// ========================================
+
+void Player::UpdateAnimation() {
+
+	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
+
+	if (isWalking) {
+
+		animationFrame_++;
+
+		if (animationFrame_ >= kAnimationInterval) {
+
+			animationFrame_ = 0;
+
+			// 0 → 1 → 2 → 3 → 0
+			// 直立 → 右足前 → 直立 → 左足前
+			animationIndex_ = (animationIndex_ + 1) % 4;
+		}
+
+	} else {
+
+		// 停止・ジャンプ・攻撃中は直立
+		animationFrame_ = 0;
+		animationIndex_ = 0;
+	}
 }
 
 // ========================================
@@ -743,7 +815,52 @@ void Player::Draw() {
 
 	objectColor_.SetColor(color_);
 
-	model_->Draw(worldTransform_, *camera_, &objectColor_);
+	// ========================================
+	// OBJアニメーションモデル切り替え
+	// ========================================
+
+	Model* drawModel = idleModel_;
+
+	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
+
+	if (isWalking) {
+
+		switch (animationIndex_) {
+
+		case 0:
+			// 直立
+			drawModel = idleModel_;
+			break;
+
+		case 1:
+			// 右足前・左足後ろ
+			drawModel = walkModels_[0];
+			break;
+
+		case 2:
+			// 直立
+			drawModel = idleModel_;
+			break;
+
+		case 3:
+			// 右足後ろ・左足前
+			drawModel = walkModels_[1];
+			break;
+
+		default:
+			drawModel = idleModel_;
+			break;
+		}
+	}
+
+	// OBJ読み込み失敗時は従来モデル
+	if (!drawModel) {
+		drawModel = model_;
+	}
+
+	if (drawModel) {
+		drawModel->Draw(worldTransform_, *camera_, &objectColor_);
+	}
 }
 
 // ========================================
