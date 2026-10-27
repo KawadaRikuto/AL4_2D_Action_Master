@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "AABB.h"
@@ -10,6 +9,7 @@ enum class EnemyType {
 	kNormal,
 	kFire,
 	kIce,
+	kSword, // 追加：ソード能力
 };
 
 class Enemy {

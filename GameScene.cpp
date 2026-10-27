@@ -1,14 +1,15 @@
-
 #include "GameScene.h"
 
 #include <cmath>
 
 namespace {
 
-/// <summary>
-/// AABB同士の交差判定
-/// </summary>
+// ========================================
+// AABB同士の交差判定
+// ========================================
+
 bool IsCollision(const AABB& aabb1, const AABB& aabb2) {
+
 	return (aabb1.min.x <= aabb2.max.x && aabb1.max.x >= aabb2.min.x && aabb1.min.y <= aabb2.max.y && aabb1.max.y >= aabb2.min.y && aabb1.min.z <= aabb2.max.z && aabb1.max.z >= aabb2.min.z);
 }
 
@@ -102,9 +103,13 @@ KamataEngine::Matrix4x4 MakeTranslateMatrix(const KamataEngine::Vector3& transla
 KamataEngine::Matrix4x4 MakeAffineMatrix(const KamataEngine::Vector3& scale, const KamataEngine::Vector3& rotation, const KamataEngine::Vector3& translation) {
 
 	KamataEngine::Matrix4x4 scaleMatrix = MakeScaleMatrix(scale);
+
 	KamataEngine::Matrix4x4 rotateXMatrix = MakeRotateXMatrix(rotation.x);
+
 	KamataEngine::Matrix4x4 rotateYMatrix = MakeRotateYMatrix(rotation.y);
+
 	KamataEngine::Matrix4x4 rotateZMatrix = MakeRotateZMatrix(rotation.z);
+
 	KamataEngine::Matrix4x4 translateMatrix = MakeTranslateMatrix(translation);
 
 	KamataEngine::Matrix4x4 rotateMatrix = Multiply(rotateXMatrix, Multiply(rotateYMatrix, rotateZMatrix));
@@ -150,7 +155,7 @@ void GameScene::Initialize() {
 	player_->Initialize(model_, &camera_, playerPosition);
 	player_->SetMapChipField(mapChipField_);
 
-	// CSVから敵を生成
+	// 敵生成
 	SpawnEnemies();
 
 	// カメラコントローラ
@@ -204,7 +209,14 @@ void GameScene::SpawnEnemies() {
 
 		EnemyType enemyType = EnemyType::kNormal;
 
-		if (enemyData.type == 1) {
+		if (enemyData.type == 0) {
+
+			// E0：ソード
+			enemyType = EnemyType::kSword;
+
+		} else if (enemyData.type == 1) {
+
+			// E1：ファイヤー
 			enemyType = EnemyType::kFire;
 		}
 
@@ -223,6 +235,7 @@ void GameScene::GenerateBlocks() {
 	worldTransformBlocks_.resize(MapChipField::kNumBlockVertical);
 
 	for (uint32_t i = 0; i < MapChipField::kNumBlockVertical; ++i) {
+
 		worldTransformBlocks_[i].resize(MapChipField::kNumBlockHorizontal, nullptr);
 	}
 
@@ -329,17 +342,16 @@ void GameScene::Update() {
 			continue;
 		}
 
-		// 吐き出しの飛行時間が終わった敵を削除する
 		if (enemy->IsFinished()) {
+
 			delete enemy;
 			it = enemies_.erase(it);
 			continue;
 		}
 
-		// 口元に保持している敵だけ操作する
 		if (enemy->IsHeld()) {
 
-			// ↓キー：吸収してコピー能力を獲得
+			// ↓キー：コピー能力を獲得
 			if (input->TriggerKey(DIK_DOWN)) {
 
 				if (player_) {
@@ -351,8 +363,9 @@ void GameScene::Update() {
 				continue;
 			}
 
-			// Zキーを押し直す：前方へ吐き出す
+			// Zキー：吐き出す
 			if (input->TriggerKey(DIK_Z)) {
+
 				if (player_) {
 					enemy->StartSpit(player_->IsFacingRight());
 				}
@@ -414,7 +427,45 @@ void GameScene::Update() {
 void GameScene::CheckAllCollisions() {
 
 	// ========================================
-	// 吐き出した敵と、ほかの敵との衝突判定
+	// ソード攻撃と敵の当たり判定
+	// ========================================
+
+	if (player_ && player_->IsSwordAttackActive()) {
+
+		AABB swordAABB = player_->GetSwordAttackAABB();
+
+		for (auto it = enemies_.begin(); it != enemies_.end();) {
+
+			Enemy* enemy = *it;
+
+			if (!enemy) {
+				it = enemies_.erase(it);
+				continue;
+			}
+
+			// 吸い込み・保持・吐き出し中は対象外
+			if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
+				++it;
+				continue;
+			}
+
+			AABB enemyAABB = enemy->GetAABB();
+
+			if (IsCollision(swordAABB, enemyAABB)) {
+
+				// 剣で倒す
+				delete enemy;
+				it = enemies_.erase(it);
+
+				continue;
+			}
+
+			++it;
+		}
+	}
+
+	// ========================================
+	// 吐き出した敵とほかの敵との衝突判定
 	// ========================================
 
 	for (auto spitIt = enemies_.begin(); spitIt != enemies_.end();) {
@@ -426,7 +477,6 @@ void GameScene::CheckAllCollisions() {
 			continue;
 		}
 
-		// 吐き出し中でなければ対象外
 		if (!spitEnemy->IsSpitting()) {
 			++spitIt;
 			continue;
@@ -444,15 +494,12 @@ void GameScene::CheckAllCollisions() {
 				continue;
 			}
 
-			// 自分自身とは衝突させない
 			if (target == spitEnemy) {
 				++targetIt;
 				continue;
 			}
 
-			// 吸い込み中・保持中・吐き出し中・消滅予定の敵は対象外
 			if (target->IsBeingInhaled() || target->IsHeld() || target->IsSpitting() || target->IsFinished()) {
-
 				++targetIt;
 				continue;
 			}
@@ -461,7 +508,6 @@ void GameScene::CheckAllCollisions() {
 
 			if (IsCollision(spitAABB, targetAABB)) {
 
-				// 当たった相手を削除
 				delete target;
 				targetIt = enemies_.erase(targetIt);
 
@@ -474,11 +520,11 @@ void GameScene::CheckAllCollisions() {
 
 		if (hitEnemy) {
 
-			// 相手に命中した吐き出し中の敵も削除
 			delete spitEnemy;
 			spitIt = enemies_.erase(spitIt);
 
 		} else {
+
 			++spitIt;
 		}
 	}
@@ -499,16 +545,14 @@ void GameScene::CheckAllCollisions() {
 			continue;
 		}
 
-		// 吸い込み中・保持中・吐き出し中・消滅予定の敵は
-		// プレイヤーとの衝突判定を行わない
 		if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
-
 			continue;
 		}
 
 		AABB enemyAABB = enemy->GetAABB();
 
 		if (IsCollision(playerAABB, enemyAABB)) {
+
 			player_->OnCollision(enemy);
 			enemy->OnCollision(player_);
 		}
@@ -519,17 +563,9 @@ void GameScene::CheckAllCollisions() {
 // エフェクト生成
 // ========================================
 
-void GameScene::CreateGuardEffect(const KamataEngine::Vector3& position) {
+void GameScene::CreateGuardEffect(const KamataEngine::Vector3& position) { (void)position; }
 
-	// 現在はガードエフェクト用モデルがない
-	(void)position;
-}
-
-void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) {
-
-	// 現在はヒットエフェクト用モデルがない
-	(void)position;
-}
+void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) { (void)position; }
 
 // ========================================
 // 描画
@@ -537,29 +573,24 @@ void GameScene::CreateHitEffect(const KamataEngine::Vector3& position) {
 
 void GameScene::Draw() {
 
-	// 天球
 	if (skydome_) {
 		skydome_->Draw();
 	}
 
-	// プレイヤー
 	if (player_) {
 		player_->Draw();
 	}
 
-	// 敵
 	for (Enemy* enemy : enemies_) {
 		if (enemy) {
 			enemy->Draw();
 		}
 	}
 
-	// デスパーティクル
 	if (deathParticles_) {
 		deathParticles_->Draw();
 	}
 
-	// ブロック
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
@@ -579,25 +610,21 @@ void GameScene::Draw() {
 
 GameScene::~GameScene() {
 
-	// ブロック解放
 	for (std::vector<KamataEngine::WorldTransform*>& worldTransformBlockLine : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* worldTransformBlock : worldTransformBlockLine) {
-
 			delete worldTransformBlock;
 		}
 	}
 
 	worldTransformBlocks_.clear();
 
-	// 敵解放
 	for (Enemy* enemy : enemies_) {
 		delete enemy;
 	}
 
 	enemies_.clear();
 
-	// その他解放
 	delete deathParticles_;
 	delete mapChipField_;
 	delete skydome_;

@@ -53,9 +53,20 @@ Player::~Player() {
 	idleModel_ = nullptr;
 
 	for (int i = 0; i < kWalkModelCount; ++i) {
-
 		delete walkModels_[i];
 		walkModels_[i] = nullptr;
+	}
+
+	// ソード歩行モデル
+	for (int i = 0; i < kSwordWalkModelCount; ++i) {
+		delete swordWalkModels_[i];
+		swordWalkModels_[i] = nullptr;
+	}
+
+	// ソード攻撃モデル
+	for (int i = 0; i < kSwordAttackModelCount; ++i) {
+		delete swordAttackModels_[i];
+		swordAttackModels_[i] = nullptr;
 	}
 }
 
@@ -89,24 +100,46 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 
 	spaceKeyPrevious_ = false;
 
+	isSwordAttacking_ = false;
+	swordAttackFrame_ = 0;
+
 	objectColor_.Initialize();
 
 	color_ = {1.0f, 1.0f, 1.0f, 1.0f};
-
 	objectColor_.SetColor(color_);
 
 	// ========================================
-	// OBJアニメーションモデル読み込み
+	// 通常歩行モデル
 	// ========================================
 
-	// 1：直立
+	// 直立
 	idleModel_ = Model::CreateFromOBJ("WalkPlayer1", true);
 
-	// 2：右足前・左足後ろ
+	// 右足前
 	walkModels_[0] = Model::CreateFromOBJ("WalkPlayer2", true);
 
-	// 3：右足後ろ・左足前
+	// 左足前
 	walkModels_[1] = Model::CreateFromOBJ("WalkPlayer3", true);
+
+	// ========================================
+	// ソード歩行モデル
+	// ========================================
+
+	swordWalkModels_[0] = Model::CreateFromOBJ("SordWalkPlayer1", true);
+
+	swordWalkModels_[1] = Model::CreateFromOBJ("SordWalkPlayer2", true);
+
+	swordWalkModels_[2] = Model::CreateFromOBJ("SordWalkPlayer3", true);
+
+	// ========================================
+	// ソード攻撃モデル
+	// ========================================
+
+	swordAttackModels_[0] = Model::CreateFromOBJ("SordPlayerAttack1", true);
+
+	swordAttackModels_[1] = Model::CreateFromOBJ("SordPlayerAttack2", true);
+
+	swordAttackModels_[2] = Model::CreateFromOBJ("SordPlayerAttack3", true);
 
 	animationIndex_ = 0;
 	animationFrame_ = 0;
@@ -126,7 +159,36 @@ void Player::Update() {
 
 		FireDashUpdate();
 
-		// 突進中は歩行アニメーションを停止
+		UpdateAnimation();
+
+		return;
+	}
+
+	// ========================================
+	// ソード攻撃中
+	// ========================================
+
+	if (isSwordAttacking_) {
+
+		UpdateSwordAttack();
+
+		UpdateWorldTransform(worldTransform_);
+
+		UpdateAnimation();
+
+		return;
+	}
+
+	// ========================================
+	// ソード攻撃入力
+	// ========================================
+
+	InputSwordAttack();
+
+	if (isSwordAttacking_) {
+
+		UpdateWorldTransform(worldTransform_);
+
 		UpdateAnimation();
 
 		return;
@@ -149,7 +211,6 @@ void Player::Update() {
 	// ========================================
 
 	CollisionMapInfo collisionMapInfo;
-
 	collisionMapInfo.move = velocity_;
 
 	MapCollision(collisionMapInfo);
@@ -186,15 +247,11 @@ void Player::Update() {
 
 	UpdateWorldTransform(worldTransform_);
 
-	// ========================================
-	// OBJアニメーション更新
-	// ========================================
-
 	UpdateAnimation();
 }
 
 // ========================================
-// OBJアニメーション更新
+// OBJ歩行アニメーション
 // ========================================
 
 void Player::UpdateAnimation() {
@@ -210,13 +267,11 @@ void Player::UpdateAnimation() {
 			animationFrame_ = 0;
 
 			// 0 → 1 → 2 → 3 → 0
-			// 直立 → 右足前 → 直立 → 左足前
 			animationIndex_ = (animationIndex_ + 1) % 4;
 		}
 
 	} else {
 
-		// 停止・ジャンプ・攻撃中は直立
 		animationFrame_ = 0;
 		animationIndex_ = 0;
 	}
@@ -292,13 +347,12 @@ void Player::InputMove() {
 
 			onGround_ = false;
 		}
-	}
 
-	// ========================================
-	// 空中
-	// ========================================
+	} else {
 
-	else {
+		// ========================================
+		// 空中
+		// ========================================
 
 		velocity_.y -= kGravityAcceleration;
 
@@ -313,6 +367,52 @@ void Player::InputMove() {
 void Player::InputInhale() { isInhaling_ = Input::GetInstance()->PushKey(DIK_Z); }
 
 // ========================================
+// ソード攻撃入力
+// ========================================
+
+void Player::InputSwordAttack() {
+
+	if (copyAbility_ != EnemyType::kSword) {
+		return;
+	}
+
+	if (Input::GetInstance()->TriggerKey(DIK_SPACE)) {
+
+		isSwordAttacking_ = true;
+		swordAttackFrame_ = 0;
+
+		isAttack_ = true;
+
+		velocity_ = {};
+		isInhaling_ = false;
+	}
+}
+
+// ========================================
+// ソード攻撃更新
+// ========================================
+
+void Player::UpdateSwordAttack() {
+
+	if (!isSwordAttacking_) {
+		return;
+	}
+
+	velocity_ = {};
+	isInhaling_ = false;
+
+	swordAttackFrame_++;
+
+	if (swordAttackFrame_ >= kSwordAttackDuration) {
+
+		isSwordAttacking_ = false;
+		swordAttackFrame_ = 0;
+
+		isAttack_ = false;
+	}
+}
+
+// ========================================
 // ファイヤー突進入力
 // ========================================
 
@@ -324,7 +424,6 @@ void Player::InputFireDash() {
 	if (copyAbility_ != EnemyType::kFire) {
 
 		spaceKeyPrevious_ = spaceKeyNow;
-
 		return;
 	}
 
@@ -379,7 +478,6 @@ void Player::FireDashUpdate() {
 		if (fireDashParameter_ >= kFireChargeDuration) {
 
 			fireDashPhase_ = FireDashPhase::kDash;
-
 			fireDashParameter_ = 0;
 		}
 
@@ -405,7 +503,6 @@ void Player::FireDashUpdate() {
 		worldTransform_.scale_.y = EaseIn(1.2f, 0.7f, t);
 
 		CollisionMapInfo collisionMapInfo;
-
 		collisionMapInfo.move = {};
 
 		if (lrDirection_ == LRDirection::kRight) {
@@ -417,24 +514,16 @@ void Player::FireDashUpdate() {
 			collisionMapInfo.move.x = -kFireDashSpeed;
 		}
 
-		// ========================================
-		// 突進時も通常と同じ衝突処理
-		// ========================================
-
 		MapCollision(collisionMapInfo);
 
 		Move(collisionMapInfo);
 
-		// ========================================
 		// 壁にぶつかった
-		// ========================================
-
 		if (collisionMapInfo.hitWall) {
 
 			velocity_ = {};
 
 			fireDashPhase_ = FireDashPhase::kRecovery;
-
 			fireDashParameter_ = 0;
 
 			UpdateWorldTransform(worldTransform_);
@@ -449,7 +538,6 @@ void Player::FireDashUpdate() {
 		if (fireDashParameter_ >= kFireDashDuration) {
 
 			fireDashPhase_ = FireDashPhase::kRecovery;
-
 			fireDashParameter_ = 0;
 		}
 
@@ -477,7 +565,6 @@ void Player::FireDashUpdate() {
 		if (fireDashParameter_ >= kFireRecoveryDuration) {
 
 			fireDashPhase_ = FireDashPhase::kNone;
-
 			fireDashParameter_ = 0;
 
 			isAttack_ = false;
@@ -504,11 +591,8 @@ void Player::FireDashUpdate() {
 void Player::MapCollision(CollisionMapInfo& info) {
 
 	MapCollisionUp(info);
-
 	MapCollisionDown(info);
-
 	MapCollisionRight(info);
-
 	MapCollisionLeft(info);
 }
 
@@ -523,7 +607,6 @@ void Player::MapCollisionUp(CollisionMapInfo& info) {
 	}
 
 	Vector3 nextPosition = worldTransform_.translation_;
-
 	nextPosition.y += info.move.y;
 
 	Vector3 leftTop = CornerPosition(nextPosition, kLeftTop);
@@ -574,7 +657,6 @@ void Player::MapCollisionDown(CollisionMapInfo& info) {
 	}
 
 	Vector3 nextPosition = worldTransform_.translation_;
-
 	nextPosition.y += info.move.y;
 
 	Vector3 leftBottom = CornerPosition(nextPosition, kLeftBottom);
@@ -625,7 +707,6 @@ void Player::MapCollisionRight(CollisionMapInfo& info) {
 	}
 
 	Vector3 nextPosition = worldTransform_.translation_;
-
 	nextPosition.x += info.move.x;
 
 	Vector3 rightTop = CornerPosition(nextPosition, kRightTop);
@@ -676,7 +757,6 @@ void Player::MapCollisionLeft(CollisionMapInfo& info) {
 	}
 
 	Vector3 nextPosition = worldTransform_.translation_;
-
 	nextPosition.x += info.move.x;
 
 	Vector3 leftTop = CornerPosition(nextPosition, kLeftTop);
@@ -734,7 +814,6 @@ void Player::Move(const CollisionMapInfo& info) {
 void Player::CeilingCollision(const CollisionMapInfo& info) {
 
 	if (info.ceiling) {
-
 		velocity_.y = 0.0f;
 	}
 }
@@ -746,7 +825,6 @@ void Player::CeilingCollision(const CollisionMapInfo& info) {
 void Player::WallCollision(const CollisionMapInfo& info) {
 
 	if (info.hitWall) {
-
 		velocity_.x = 0.0f;
 	}
 }
@@ -760,7 +838,6 @@ void Player::SwitchGroundState(const CollisionMapInfo& info) {
 	if (info.landing) {
 
 		onGround_ = true;
-
 		velocity_.y = 0.0f;
 
 	} else if (velocity_.y < 0.0f) {
@@ -770,13 +847,12 @@ void Player::SwitchGroundState(const CollisionMapInfo& info) {
 }
 
 // ========================================
-// 角の座標
+// 四隅の座標
 // ========================================
 
 Vector3 Player::CornerPosition(const Vector3& center, Corner corner) {
 
 	Vector3 offsetTable[kNumCorner] = {
-
 	    {+kWidth / 2.0f, -kHeight / 2.0f, 0.0f},
 	    {-kWidth / 2.0f, -kHeight / 2.0f, 0.0f},
 	    {+kWidth / 2.0f, +kHeight / 2.0f, 0.0f},
@@ -784,6 +860,43 @@ Vector3 Player::CornerPosition(const Vector3& center, Corner corner) {
 	};
 
 	return {center.x + offsetTable[corner].x, center.y + offsetTable[corner].y, center.z + offsetTable[corner].z};
+}
+
+// ========================================
+// ソード攻撃AABB
+// ========================================
+
+AABB Player::GetSwordAttackAABB() const {
+
+	AABB aabb{};
+
+	float playerX = worldTransform_.translation_.x;
+	float playerY = worldTransform_.translation_.y;
+	float playerZ = worldTransform_.translation_.z;
+
+	// 右向き
+	if (IsFacingRight()) {
+
+		aabb.min.x = playerX + kWidth / 2.0f;
+
+		aabb.max.x = aabb.min.x + kSwordAttackRange;
+
+	} else {
+
+		// 左向き
+		aabb.max.x = playerX - kWidth / 2.0f;
+
+		aabb.min.x = aabb.max.x - kSwordAttackRange;
+	}
+
+	aabb.min.y = playerY - kHeight / 2.0f;
+
+	aabb.max.y = playerY + kHeight / 2.0f;
+
+	aabb.min.z = playerZ - 0.5f;
+	aabb.max.z = playerZ + 0.5f;
+
+	return aabb;
 }
 
 // ========================================
@@ -797,74 +910,137 @@ void Player::Draw() {
 	case EnemyType::kNormal:
 
 		color_ = {1.0f, 1.0f, 1.0f, 1.0f};
-
 		break;
 
 	case EnemyType::kFire:
 
 		color_ = {1.0f, 0.2f, 0.1f, 1.0f};
-
 		break;
 
 	case EnemyType::kIce:
 
 		color_ = {0.3f, 0.8f, 1.0f, 1.0f};
+		break;
 
+	case EnemyType::kSword:
+
+		color_ = {1.0f, 1.0f, 1.0f, 1.0f};
 		break;
 	}
 
 	objectColor_.SetColor(color_);
 
+	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
+
 	// ========================================
-	// OBJアニメーションモデル切り替え
+	// 基本モデルは通常の直立
 	// ========================================
 
 	Model* drawModel = idleModel_;
 
-	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
+	// ========================================
+	// ソード能力
+	// ========================================
 
-	if (isWalking) {
+	if (copyAbility_ == EnemyType::kSword) {
 
-		switch (animationIndex_) {
+		// ========================================
+		// 攻撃アニメーション
+		// ========================================
 
-		case 0:
-			// 直立
+		if (isSwordAttacking_) {
+
+			int attackIndex = swordAttackFrame_ / kSwordAttackFrameInterval;
+
+			attackIndex = std::clamp(attackIndex, 0, kSwordAttackModelCount - 1);
+
+			drawModel = swordAttackModels_[attackIndex];
+
+		} else if (isWalking) {
+
+			// ========================================
+			// ソード歩行
+			// 1 → 2 → 1 → 3
+			// ========================================
+
+			switch (animationIndex_) {
+
+			case 0:
+				drawModel = swordWalkModels_[0];
+				break;
+
+			case 1:
+				drawModel = swordWalkModels_[1];
+				break;
+
+			case 2:
+				drawModel = swordWalkModels_[0];
+				break;
+
+			case 3:
+				drawModel = swordWalkModels_[2];
+				break;
+
+			default:
+				drawModel = swordWalkModels_[0];
+				break;
+			}
+
+		} else {
+
+			// ========================================
+			// ソード能力中も停止はWalkPlayer1
+			// ========================================
+
 			drawModel = idleModel_;
-			break;
+		}
 
-		case 1:
-			// 右足前・左足後ろ
-			drawModel = walkModels_[0];
-			break;
+	} else {
 
-		case 2:
-			// 直立
-			drawModel = idleModel_;
-			break;
+		// ========================================
+		// 通常・ファイヤー・アイス
+		// ========================================
 
-		case 3:
-			// 右足後ろ・左足前
-			drawModel = walkModels_[1];
-			break;
+		if (isWalking) {
 
-		default:
-			drawModel = idleModel_;
-			break;
+			switch (animationIndex_) {
+
+			case 0:
+				drawModel = idleModel_;
+				break;
+
+			case 1:
+				drawModel = walkModels_[0];
+				break;
+
+			case 2:
+				drawModel = idleModel_;
+				break;
+
+			case 3:
+				drawModel = walkModels_[1];
+				break;
+
+			default:
+				drawModel = idleModel_;
+				break;
+			}
 		}
 	}
 
-	// OBJ読み込み失敗時は従来モデル
+	// 読み込み失敗時の代替
 	if (!drawModel) {
 		drawModel = model_;
 	}
 
 	if (drawModel) {
+
 		drawModel->Draw(worldTransform_, *camera_, &objectColor_);
 	}
 }
 
 // ========================================
-// ワールド座標取得
+// ワールド座標
 // ========================================
 
 Vector3 Player::GetWorldPosition() const { return worldTransform_.translation_; }
