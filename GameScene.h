@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "CameraController.h"
@@ -14,9 +15,11 @@
 #include <list>
 #include <vector>
 
+// ========================================
 // ゲームシーン
-class GameScene {
+// ========================================
 
+class GameScene {
 public:
 	~GameScene();
 
@@ -24,80 +27,85 @@ public:
 	void Update();
 	void Draw();
 
-	/// <summary>
-	/// ガードエフェクトを生成
-	/// </summary>
+	// ガードエフェクト生成
 	void CreateGuardEffect(const KamataEngine::Vector3& position);
 
-	/// <summary>
-	/// ヒットエフェクトを生成
-	/// </summary>
+	// ヒットエフェクト生成
 	void CreateHitEffect(const KamataEngine::Vector3& position);
 
 private:
-	/// <summary>
-	/// ブロックの生成
-	/// </summary>
+	// ブロック生成
 	void GenerateBlocks();
 
-	/// <summary>
-	/// 全ての当たり判定を行う
-	/// </summary>
+	// ゴール生成
+	void GenerateGoals();
+
+	// 全当たり判定
 	void CheckAllCollisions();
 
-	/// <summary>
-	/// ゲーム全体を初期状態に戻す
-	/// </summary>
+	// ゲームリセット
 	void ResetGame();
 
-	/// <summary>
-	/// 敵を初期状態で生成する
-	/// </summary>
+	// CSVから敵生成
 	void SpawnEnemies();
 
+	// ブロック・ゴールの解放
+	void ClearMapObjects();
+
 private:
-	// 自キャラ用3Dモデルデータ
+	// ========================================
+	// モデル
+	// ========================================
+
 	KamataEngine::Model* model_ = nullptr;
-
-	// ブロック用3Dモデルデータ
 	KamataEngine::Model* modelBlock_ = nullptr;
-
-	// 天球用3Dモデルデータ
 	KamataEngine::Model* modelSkydome_ = nullptr;
-
-	// 敵用3Dモデルデータ
 	KamataEngine::Model* modelEnemy_ = nullptr;
-
-	// デスパーティクル用3Dモデルデータ
 	KamataEngine::Model* modelDeathParticle_ = nullptr;
 
+	// ゴールモデル
+	KamataEngine::Model* modelGoal_ = nullptr;
+
+	// ========================================
 	// カメラ
+	// ========================================
+
 	KamataEngine::Camera camera_;
 
-	// カメラコントローラ
 	CameraController* cameraController_ = nullptr;
 
-	// デバッグカメラ有効
 	bool isDebugCameraActive_ = false;
 
-	// デバッグカメラ
 	KamataEngine::DebugCamera* debugCamera_ = nullptr;
 
-	// 自キャラ
+	// ========================================
+	// キャラクター
+	// ========================================
+
 	Player* player_ = nullptr;
 
-	// 敵
 	std::list<Enemy*> enemies_;
 
-	// デスパーティクル
+	// ========================================
+	// エフェクト・背景
+	// ========================================
+
 	DeathParticles* deathParticles_ = nullptr;
 
-	// 天球
 	Skydome* skydome_ = nullptr;
 
-	// マップチップフィールド
+	// ========================================
+	// マップ
+	// ========================================
+
 	MapChipField* mapChipField_ = nullptr;
 
-	// ブロック用ワールドトランスフォーム
+	// ブロックの配置データ
 	std::vector<std::vector<KamataEngine::WorldTransform*>> worldTransformBlocks_;
+
+	// ゴールの配置データ
+	std::vector<KamataEngine::WorldTransform*> goalTransforms_;
+
+	// ゴール到達状態
+	bool isGoalReached_ = false;
 };

@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "KamataEngine.h"
@@ -6,26 +7,29 @@
 #include <string>
 #include <vector>
 
-    /// <summary>
-    /// マップチップの種類
-    /// </summary>
-    enum class MapChipType {
-	    kBlank, // 空白
-	    kBlock, // ブロック
-    };
+// ========================================
+// マップチップの種類
+// ========================================
 
-/// <summary>
-/// マップチップデータ
-/// </summary>
+enum class MapChipType {
+	kBlank, // 空白
+	kBlock, // ブロック
+	kGoal,  // ゴール
+};
+
+// ========================================
+// マップチップデータ
+// ========================================
+
 struct MapChipData {
 	std::vector<std::vector<MapChipType>> data;
 };
 
-/// <summary>
-/// マップチップフィールド
-/// </summary>
-class MapChipField {
+// ========================================
+// マップチップフィールド
+// ========================================
 
+class MapChipField {
 public:
 	// インデックスの組
 	struct IndexSet {
@@ -33,7 +37,7 @@ public:
 		uint32_t yIndex;
 	};
 
-	// 敵配置データ
+	// 敵の配置データ
 	struct EnemySpawnData {
 		IndexSet index;
 		int type;
@@ -47,54 +51,45 @@ public:
 		float top;
 	};
 
-	// ブロックの個数
+	// マップサイズ
 	static inline const uint32_t kNumBlockVertical = 20;
 	static inline const uint32_t kNumBlockHorizontal = 100;
 
-	/// <summary>
-	/// マップチップデータをリセットする
-	/// </summary>
+	// マップデータを初期化
 	void ResetMapChipData();
 
-	/// <summary>
-	/// CSVファイルからマップチップデータを読み込む
-	/// </summary>
+	// CSVからマップを読み込み
 	void LoadMapChipCsv(const std::string& filePath);
 
-	/// <summary>
-	/// 指定したマスのマップチップを取得する
-	/// 範囲外の場合は空白を返す
-	/// </summary>
+	// 指定マスの種類を取得
 	MapChipType GetMapChipTypeByIndex(uint32_t xIndex, uint32_t yIndex);
 
-	/// <summary>
-	/// マップチップ番号から座標を取得する
-	/// </summary>
+	// マップチップの座標を取得
 	KamataEngine::Vector3 GetMapChipPositionByIndex(uint32_t xIndex, uint32_t yIndex);
 
-	/// <summary>
-	/// 座標からマップチップ番号を取得する
-	/// </summary>
+	// 座標からマップチップ番号を取得
 	IndexSet GetMapChipIndexSetByPosition(const KamataEngine::Vector3& position);
 
-	/// <summary>
-	/// 指定したマップチップの範囲を取得する
-	/// </summary>
+	// マップチップの範囲を取得
 	Rect GetRectByIndex(uint32_t xIndex, uint32_t yIndex);
 
-	/// <summary>
-	/// 敵の配置データを取得する
-	/// </summary>
+	// CSVのE0・E1配置データ
 	const std::vector<EnemySpawnData>& GetEnemySpawnData() const { return enemySpawnData_; }
 
+	// CSVのG0配置データ
+	const std::vector<IndexSet>& GetGoalSpawnData() const { return goalSpawnData_; }
+
 private:
-	// 1ブロックのサイズ
+	// 1マスのサイズ
 	static inline const float kBlockWidth = 1.0f;
 	static inline const float kBlockHeight = 1.0f;
 
 	// マップチップデータ
 	MapChipData mapChipData_;
 
-	// CSV内の敵配置データ
+	// 敵の配置
 	std::vector<EnemySpawnData> enemySpawnData_;
+
+	// ゴールの配置
+	std::vector<IndexSet> goalSpawnData_;
 };
