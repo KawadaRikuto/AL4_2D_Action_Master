@@ -68,6 +68,12 @@ Player::~Player() {
 		delete swordAttackModels_[i];
 		swordAttackModels_[i] = nullptr;
 	}
+
+	// ファイヤー突進攻撃モデル
+	for (int i = 0; i < kFireAttackModelCount; ++i) {
+		delete fireAttackModels_[i];
+		fireAttackModels_[i] = nullptr;
+	}
 }
 
 // ========================================
@@ -126,9 +132,7 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	// ========================================
 
 	swordWalkModels_[0] = Model::CreateFromOBJ("SordWalkPlayer1", true);
-
 	swordWalkModels_[1] = Model::CreateFromOBJ("SordWalkPlayer2", true);
-
 	swordWalkModels_[2] = Model::CreateFromOBJ("SordWalkPlayer3", true);
 
 	// ========================================
@@ -136,10 +140,16 @@ void Player::Initialize(Model* model, Camera* camera, const Vector3& position) {
 	// ========================================
 
 	swordAttackModels_[0] = Model::CreateFromOBJ("SordPlayerAttack1", true);
-
 	swordAttackModels_[1] = Model::CreateFromOBJ("SordPlayerAttack2", true);
-
 	swordAttackModels_[2] = Model::CreateFromOBJ("SordPlayerAttack3", true);
+
+	// ========================================
+	// ファイヤー突進攻撃モデル
+	// ========================================
+
+	fireAttackModels_[0] = Model::CreateFromOBJ("PlayerAttack1", true);
+	fireAttackModels_[1] = Model::CreateFromOBJ("PlayerAttack2", true);
+	fireAttackModels_[2] = Model::CreateFromOBJ("PlayerAttack3", true);
 
 	animationIndex_ = 0;
 	animationFrame_ = 0;
@@ -610,7 +620,6 @@ void Player::MapCollisionUp(CollisionMapInfo& info) {
 	nextPosition.y += info.move.y;
 
 	Vector3 leftTop = CornerPosition(nextPosition, kLeftTop);
-
 	Vector3 rightTop = CornerPosition(nextPosition, kRightTop);
 
 	MapChipField::IndexSet leftIndex = mapChipField_->GetMapChipIndexSetByPosition(leftTop);
@@ -630,7 +639,6 @@ void Player::MapCollisionUp(CollisionMapInfo& info) {
 		float playerTop = worldTransform_.translation_.y + kHeight / 2.0f;
 
 		info.move.y = blockBottom - playerTop - kBlank;
-
 		return;
 	}
 
@@ -660,7 +668,6 @@ void Player::MapCollisionDown(CollisionMapInfo& info) {
 	nextPosition.y += info.move.y;
 
 	Vector3 leftBottom = CornerPosition(nextPosition, kLeftBottom);
-
 	Vector3 rightBottom = CornerPosition(nextPosition, kRightBottom);
 
 	MapChipField::IndexSet leftIndex = mapChipField_->GetMapChipIndexSetByPosition(leftBottom);
@@ -680,7 +687,6 @@ void Player::MapCollisionDown(CollisionMapInfo& info) {
 		float playerBottom = worldTransform_.translation_.y - kHeight / 2.0f;
 
 		info.move.y = blockTop - playerBottom + kBlank;
-
 		return;
 	}
 
@@ -710,7 +716,6 @@ void Player::MapCollisionRight(CollisionMapInfo& info) {
 	nextPosition.x += info.move.x;
 
 	Vector3 rightTop = CornerPosition(nextPosition, kRightTop);
-
 	Vector3 rightBottom = CornerPosition(nextPosition, kRightBottom);
 
 	MapChipField::IndexSet topIndex = mapChipField_->GetMapChipIndexSetByPosition(rightTop);
@@ -730,7 +735,6 @@ void Player::MapCollisionRight(CollisionMapInfo& info) {
 		float playerRight = worldTransform_.translation_.x + kWidth / 2.0f;
 
 		info.move.x = blockLeft - playerRight - kBlank;
-
 		return;
 	}
 
@@ -760,7 +764,6 @@ void Player::MapCollisionLeft(CollisionMapInfo& info) {
 	nextPosition.x += info.move.x;
 
 	Vector3 leftTop = CornerPosition(nextPosition, kLeftTop);
-
 	Vector3 leftBottom = CornerPosition(nextPosition, kLeftBottom);
 
 	MapChipField::IndexSet topIndex = mapChipField_->GetMapChipIndexSetByPosition(leftTop);
@@ -780,7 +783,6 @@ void Player::MapCollisionLeft(CollisionMapInfo& info) {
 		float playerLeft = worldTransform_.translation_.x - kWidth / 2.0f;
 
 		info.move.x = blockRight - playerLeft + kBlank;
-
 		return;
 	}
 
@@ -878,19 +880,16 @@ AABB Player::GetSwordAttackAABB() const {
 	if (IsFacingRight()) {
 
 		aabb.min.x = playerX + kWidth / 2.0f;
-
 		aabb.max.x = aabb.min.x + kSwordAttackRange;
 
 	} else {
 
 		// 左向き
 		aabb.max.x = playerX - kWidth / 2.0f;
-
 		aabb.min.x = aabb.max.x - kSwordAttackRange;
 	}
 
 	aabb.min.y = playerY - kHeight / 2.0f;
-
 	aabb.max.y = playerY + kHeight / 2.0f;
 
 	aabb.min.z = playerZ - 0.5f;
@@ -908,22 +907,18 @@ void Player::Draw() {
 	switch (copyAbility_) {
 
 	case EnemyType::kNormal:
-
 		color_ = {1.0f, 1.0f, 1.0f, 1.0f};
 		break;
 
 	case EnemyType::kFire:
-
 		color_ = {1.0f, 0.2f, 0.1f, 1.0f};
 		break;
 
 	case EnemyType::kIce:
-
 		color_ = {0.3f, 0.8f, 1.0f, 1.0f};
 		break;
 
 	case EnemyType::kSword:
-
 		color_ = {1.0f, 1.0f, 1.0f, 1.0f};
 		break;
 	}
@@ -932,21 +927,42 @@ void Player::Draw() {
 
 	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
 
-	// ========================================
 	// 基本モデルは通常の直立
+	Model* drawModel = idleModel_;
+
+	// ========================================
+	// ファイヤー突進攻撃アニメーション
 	// ========================================
 
-	Model* drawModel = idleModel_;
+	if (fireDashPhase_ != FireDashPhase::kNone) {
+
+		switch (fireDashPhase_) {
+
+		// 溜め：突進の構え
+		case FireDashPhase::kCharge:
+			drawModel = fireAttackModels_[1]; // PlayerAttack2
+			break;
+
+		// 突進中
+		case FireDashPhase::kDash:
+			drawModel = fireAttackModels_[2]; // PlayerAttack3
+			break;
+
+		// 突進終了：直立に戻る
+		case FireDashPhase::kRecovery:
+			drawModel = fireAttackModels_[0]; // PlayerAttack1
+			break;
+
+		case FireDashPhase::kNone:
+			break;
+		}
+	}
 
 	// ========================================
 	// ソード能力
 	// ========================================
 
-	if (copyAbility_ == EnemyType::kSword) {
-
-		// ========================================
-		// 攻撃アニメーション
-		// ========================================
+	else if (copyAbility_ == EnemyType::kSword) {
 
 		if (isSwordAttacking_) {
 
@@ -958,11 +974,7 @@ void Player::Draw() {
 
 		} else if (isWalking) {
 
-			// ========================================
-			// ソード歩行
-			// 1 → 2 → 1 → 3
-			// ========================================
-
+			// ソード歩行：1 → 2 → 1 → 3
 			switch (animationIndex_) {
 
 			case 0:
@@ -988,43 +1000,38 @@ void Player::Draw() {
 
 		} else {
 
-			// ========================================
 			// ソード能力中も停止はWalkPlayer1
-			// ========================================
-
 			drawModel = idleModel_;
 		}
+	}
 
-	} else {
+	// ========================================
+	// 通常・ファイヤー・アイス歩行
+	// ========================================
 
-		// ========================================
-		// 通常・ファイヤー・アイス
-		// ========================================
+	else if (isWalking) {
 
-		if (isWalking) {
+		switch (animationIndex_) {
 
-			switch (animationIndex_) {
+		case 0:
+			drawModel = idleModel_;
+			break;
 
-			case 0:
-				drawModel = idleModel_;
-				break;
+		case 1:
+			drawModel = walkModels_[0];
+			break;
 
-			case 1:
-				drawModel = walkModels_[0];
-				break;
+		case 2:
+			drawModel = idleModel_;
+			break;
 
-			case 2:
-				drawModel = idleModel_;
-				break;
+		case 3:
+			drawModel = walkModels_[1];
+			break;
 
-			case 3:
-				drawModel = walkModels_[1];
-				break;
-
-			default:
-				drawModel = idleModel_;
-				break;
-			}
+		default:
+			drawModel = idleModel_;
+			break;
 		}
 	}
 
@@ -1034,7 +1041,6 @@ void Player::Draw() {
 	}
 
 	if (drawModel) {
-
 		drawModel->Draw(worldTransform_, *camera_, &objectColor_);
 	}
 }
@@ -1054,15 +1060,11 @@ AABB Player::GetAABB() {
 	AABB aabb;
 
 	aabb.min.x = worldTransform_.translation_.x - kWidth / 2.0f;
-
 	aabb.min.y = worldTransform_.translation_.y - kHeight / 2.0f;
-
 	aabb.min.z = worldTransform_.translation_.z - 0.5f;
 
 	aabb.max.x = worldTransform_.translation_.x + kWidth / 2.0f;
-
 	aabb.max.y = worldTransform_.translation_.y + kHeight / 2.0f;
-
 	aabb.max.z = worldTransform_.translation_.z + 0.5f;
 
 	return aabb;
@@ -1095,10 +1097,5 @@ Vector3 Player::GetInhalePosition() const {
 
 	float direction = IsFacingRight() ? 1.0f : -1.0f;
 
-	return {
-	    worldTransform_.translation_.x + kInhaleOffsetX * direction,
-
-	    worldTransform_.translation_.y + kInhaleOffsetY,
-
-	    worldTransform_.translation_.z};
+	return {worldTransform_.translation_.x + kInhaleOffsetX * direction, worldTransform_.translation_.y + kInhaleOffsetY, worldTransform_.translation_.z};
 }

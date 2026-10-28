@@ -150,6 +150,16 @@ private:
 	KamataEngine::Model* swordAttackModels_[kSwordAttackModelCount] = {};
 
 	// ========================================
+	// ファイヤー突進攻撃モデル
+	// ========================================
+
+	// PlayerAttack1：直立
+	// PlayerAttack2：突進の構え
+	// PlayerAttack3：突進中
+	static constexpr int kFireAttackModelCount = 3;
+	KamataEngine::Model* fireAttackModels_[kFireAttackModelCount] = {};
+
+	// ========================================
 	// 通常・ソード共通歩行アニメーション
 	// ========================================
 
