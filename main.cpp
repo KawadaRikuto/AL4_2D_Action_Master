@@ -5,6 +5,87 @@
 #include "TitleScene.h"
 
 #include <Windows.h>
+#include <mmsystem.h>
+#include <string>
+
+#pragma comment(lib, "winmm.lib")
+
+// ========================================
+// BGM管理
+// ========================================
+
+class BGMManager {
+public:
+	// BGMを再生する
+	void Play(const std::wstring& filePath, bool loop) {
+
+		// 再生中のBGMを停止
+		Stop();
+
+		// ループ設定
+		isLoop_ = loop;
+
+		// MP3を開く
+		std::wstring command = L"open \"" + filePath + L"\" type mpegvideo alias CopyPopBGM";
+
+		MCIERROR result = mciSendStringW(command.c_str(), nullptr, 0, nullptr);
+
+		if (result != 0) {
+
+			isPlaying_ = false;
+			return;
+		}
+
+		isPlaying_ = true;
+
+		// BGMを最初から再生
+		mciSendStringW(L"play CopyPopBGM from 0", nullptr, 0, nullptr);
+	}
+
+	// 毎フレーム更新
+	void Update() {
+
+		if (!isPlaying_ || !isLoop_) {
+			return;
+		}
+
+		wchar_t mode[128] = {};
+
+		// 現在の再生状態を取得
+		MCIERROR result = mciSendStringW(L"status CopyPopBGM mode", mode, 128, nullptr);
+
+		if (result != 0) {
+			return;
+		}
+
+		// 曲の再生が終了したら最初から再生
+		if (lstrcmpiW(mode, L"stopped") == 0) {
+
+			mciSendStringW(L"play CopyPopBGM from 0", nullptr, 0, nullptr);
+		}
+	}
+
+	// BGM停止
+	void Stop() {
+
+		if (!isPlaying_) {
+			return;
+		}
+
+		mciSendStringW(L"stop CopyPopBGM", nullptr, 0, nullptr);
+
+		mciSendStringW(L"close CopyPopBGM", nullptr, 0, nullptr);
+
+		isPlaying_ = false;
+		isLoop_ = false;
+	}
+
+	~BGMManager() { Stop(); }
+
+private:
+	bool isPlaying_ = false;
+	bool isLoop_ = false;
+};
 
 // ========================================
 // Windowsアプリのエントリーポイント
@@ -21,6 +102,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	using namespace KamataEngine;
 
 	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
+
+	// ========================================
+	// BGM管理
+	// ========================================
+
+	BGMManager bgmManager;
 
 	// ========================================
 	// シーン管理
@@ -46,15 +133,30 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	ClearScene* clearScene = nullptr;
 
 	// ========================================
+	// タイトルBGM再生
+	// ========================================
+
+	bgmManager.Play(L"Resources/BGM/Title.mp3", true);
+
+	// ========================================
 	// メインループ
 	// ========================================
 
 	while (true) {
 
+		// ========================================
 		// エンジン更新
+		// ========================================
+
 		if (KamataEngine::Update()) {
 			break;
 		}
+
+		// ========================================
+		// BGM更新
+		// ========================================
+
+		bgmManager.Update();
 
 		// ========================================
 		// シーン更新
@@ -75,6 +177,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				// SPACEキーでゲーム開始
 				if (titleScene->IsFinished()) {
 
+					// タイトルBGM停止
+					bgmManager.Stop();
+
 					// タイトルシーン解放
 					delete titleScene;
 					titleScene = nullptr;
@@ -85,6 +190,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 					// ゲームシーンへ移行
 					scene = Scene::kGame;
+
+					// ========================================
+					// ゲームBGM再生
+					// ========================================
+
+					bgmManager.Play(L"Resources/BGM/GameScene.mp3", true);
 				}
 			}
 
@@ -103,6 +214,9 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 				// ゴール到達判定
 				if (gameScene->IsGoalReached()) {
 
+					// ゲームBGM停止
+					bgmManager.Stop();
+
 					// クリアシーン生成
 					clearScene = new ClearScene();
 					clearScene->Initialize();
@@ -113,6 +227,12 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 					// クリアシーンへ移行
 					scene = Scene::kClear;
+
+					// ========================================
+					// クリアBGM再生
+					// ========================================
+
+					bgmManager.Play(L"Resources/BGM/Clear.mp3", false);
 				}
 			}
 
@@ -146,7 +266,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 		switch (scene) {
 
-		// タイトルシーン描画
+			// ========================================
+			// タイトルシーン描画
+			// ========================================
+
 		case Scene::kTitle:
 
 			if (titleScene) {
@@ -156,7 +279,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			break;
 
-		// ゲームシーン描画
+			// ========================================
+			// ゲームシーン描画
+			// ========================================
+
 		case Scene::kGame:
 
 			if (gameScene) {
@@ -166,7 +292,10 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
 			break;
 
-		// クリアシーン描画
+			// ========================================
+			// クリアシーン描画
+			// ========================================
+
 		case Scene::kClear:
 
 			if (clearScene) {
@@ -187,7 +316,13 @@ int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 	}
 
 	// ========================================
-	// 解放処理
+	// BGM停止
+	// ========================================
+
+	bgmManager.Stop();
+
+	// ========================================
+	// シーン解放
 	// ========================================
 
 	delete titleScene;
