@@ -901,7 +901,6 @@ AABB Player::GetSwordAttackAABB() const {
 // ========================================
 // 描画
 // ========================================
-
 void Player::Draw() {
 
 	switch (copyAbility_) {
@@ -911,6 +910,7 @@ void Player::Draw() {
 		break;
 
 	case EnemyType::kFire:
+		// ファイヤー：赤
 		color_ = {1.0f, 0.2f, 0.1f, 1.0f};
 		break;
 
@@ -919,7 +919,8 @@ void Player::Draw() {
 		break;
 
 	case EnemyType::kSword:
-		color_ = {1.0f, 1.0f, 1.0f, 1.0f};
+		// ソード：青
+		color_ = {0.2f, 0.4f, 1.0f, 1.0f};
 		break;
 	}
 
@@ -927,30 +928,26 @@ void Player::Draw() {
 
 	bool isWalking = onGround_ && !isAttack_ && fireDashPhase_ == FireDashPhase::kNone && std::abs(velocity_.x) > 0.01f;
 
-	// 基本モデルは通常の直立
 	Model* drawModel = idleModel_;
 
 	// ========================================
-	// ファイヤー突進攻撃アニメーション
+	// ファイヤー突進攻撃
 	// ========================================
 
 	if (fireDashPhase_ != FireDashPhase::kNone) {
 
 		switch (fireDashPhase_) {
 
-		// 溜め：突進の構え
 		case FireDashPhase::kCharge:
-			drawModel = fireAttackModels_[1]; // PlayerAttack2
+			drawModel = fireAttackModels_[1];
 			break;
 
-		// 突進中
 		case FireDashPhase::kDash:
-			drawModel = fireAttackModels_[2]; // PlayerAttack3
+			drawModel = fireAttackModels_[2];
 			break;
 
-		// 突進終了：直立に戻る
 		case FireDashPhase::kRecovery:
-			drawModel = fireAttackModels_[0]; // PlayerAttack1
+			drawModel = fireAttackModels_[0];
 			break;
 
 		case FireDashPhase::kNone:
@@ -1000,7 +997,6 @@ void Player::Draw() {
 
 		} else {
 
-			// ソード能力中も停止はWalkPlayer1
 			drawModel = idleModel_;
 		}
 	}
@@ -1035,7 +1031,6 @@ void Player::Draw() {
 		}
 	}
 
-	// 読み込み失敗時の代替
 	if (!drawModel) {
 		drawModel = model_;
 	}
@@ -1044,6 +1039,7 @@ void Player::Draw() {
 		drawModel->Draw(worldTransform_, *camera_, &objectColor_);
 	}
 }
+
 
 // ========================================
 // ワールド座標

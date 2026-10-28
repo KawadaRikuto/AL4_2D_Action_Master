@@ -21,14 +21,19 @@ float Lerp(float start, float end, float t) { return start + (end - start) * t; 
 
 Enemy::~Enemy() {
 
-	// E0専用モデルを解放
+	// E0 ソードモデル
 	for (int i = 0; i < kSwordModelCount; ++i) {
-
 		delete swordModels_[i];
 		swordModels_[i] = nullptr;
 	}
 
-	// model_はGameScene側で管理しているので削除しない
+	// E1 ファイヤーモデル
+	for (int i = 0; i < kFireModelCount; ++i) {
+		delete fireModels_[i];
+		fireModels_[i] = nullptr;
+	}
+
+	// model_はGameScene側で管理
 }
 
 // ========================================
@@ -36,7 +41,6 @@ Enemy::~Enemy() {
 // ========================================
 
 void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera, const KamataEngine::Vector3& position, EnemyType type) {
-
 	assert(model);
 	assert(camera);
 
@@ -45,7 +49,6 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 	enemyType_ = type;
 
 	worldTransform_.Initialize();
-
 	worldTransform_.translation_ = position;
 
 	// 最初は左向き
@@ -62,14 +65,21 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 
 	spitParameter_ = 0;
 
-	// ========================================
-	// E0 ソード敵の初期化
-	// ========================================
-
 	swordAttackPhase_ = SwordAttackPhase::kMove;
 	swordAttackTimer_ = 0;
-
 	swordFacingRight_ = false;
+
+	fireDashPhase_ = FireDashPhase::kMove;
+	fireDashTimer_ = 0;
+	fireFacingRight_ = false;
+
+	objectColor_.Initialize();
+
+	color_ = {1.0f, 1.0f, 1.0f, 1.0f};
+
+	// ========================================
+	// E0 ソード敵
+	// ========================================
 
 	if (enemyType_ == EnemyType::kSword) {
 
@@ -81,8 +91,34 @@ void Enemy::Initialize(KamataEngine::Model* model, KamataEngine::Camera* camera,
 
 		swordModels_[3] = KamataEngine::Model::CreateFromOBJ("SordEnemyAttack4", true);
 
+		// 青色
+		color_ = {0.2f, 0.4f, 1.0f, 1.0f};
+
 		velocity_ = {};
 	}
+
+	// ========================================
+	// E1 ファイヤー敵
+	// ========================================
+
+	if (enemyType_ == EnemyType::kFire) {
+
+		// 直立
+		fireModels_[0] = KamataEngine::Model::CreateFromOBJ("EnemyAttack1", true);
+
+		// 突進開始
+		fireModels_[1] = KamataEngine::Model::CreateFromOBJ("EnemyAttack2", true);
+
+		// 突進中
+		fireModels_[2] = KamataEngine::Model::CreateFromOBJ("EnemyAttack3", true);
+
+		// 赤色
+		color_ = {1.0f, 0.2f, 0.1f, 1.0f};
+
+		velocity_ = {};
+	}
+
+	objectColor_.SetColor(color_);
 
 	UpdateWorldTransform(worldTransform_);
 }
@@ -104,7 +140,6 @@ void Enemy::Update(const Player* player) {
 		}
 
 		velocity_ = {};
-
 		UpdateWorldTransform(worldTransform_);
 		return;
 	}
@@ -116,30 +151,27 @@ void Enemy::Update(const Player* player) {
 	if (isSpitting_) {
 
 		UpdateSpit();
-
 		UpdateWorldTransform(worldTransform_);
 		return;
 	}
 
 	// ========================================
-	// 吸い込み判定
+	// 吸い込み
 	// ========================================
 
 	if (player) {
 		UpdateInhale(player);
 	}
 
-	// ========================================
-	// 吸い込み中は移動・攻撃停止
-	// ========================================
-
 	if (isBeingInhaled_) {
 
 		velocity_ = {};
 
-		// 吸い込み中に攻撃を続けない
 		swordAttackPhase_ = SwordAttackPhase::kMove;
 		swordAttackTimer_ = 0;
+
+		fireDashPhase_ = FireDashPhase::kMove;
+		fireDashTimer_ = 0;
 
 		UpdateWorldTransform(worldTransform_);
 		return;
@@ -158,14 +190,25 @@ void Enemy::Update(const Player* player) {
 	}
 
 	// ========================================
-	// E1などの通常移動
+	// E1 ファイヤー敵
+	// ========================================
+
+	if (enemyType_ == EnemyType::kFire) {
+
+		UpdateFireEnemy(player);
+
+		UpdateWorldTransform(worldTransform_);
+		return;
+	}
+
+	// ========================================
+	// 通常敵
 	// ========================================
 
 	worldTransform_.translation_.x += velocity_.x;
 	worldTransform_.translation_.y += velocity_.y;
 	worldTransform_.translation_.z += velocity_.z;
 
-	// 歩行アニメーション
 	walkTimer_ += 1.0f / 60.0f;
 
 	float param = std::sin(2.0f * std::numbers::pi_v<float> * walkTimer_ / kWalkMotionTime);
@@ -180,19 +223,17 @@ void Enemy::Update(const Player* player) {
 }
 
 // ========================================
-// E0 ソード敵の更新
+// E0 ソード敵：追跡
 // ========================================
 
 void Enemy::UpdateSwordEnemy(const Player* player) {
 
-	// 攻撃中・待機中は専用の更新処理
 	if (swordAttackPhase_ != SwordAttackPhase::kMove) {
 
 		UpdateSwordAttack();
 		return;
 	}
 
-	// プレイヤーがいない場合は停止
 	if (!player) {
 
 		velocity_ = {};
@@ -210,23 +251,12 @@ void Enemy::UpdateSwordEnemy(const Player* player) {
 	float distanceX = std::abs(differenceX);
 	float distanceY = std::abs(differenceY);
 
-	// ========================================
-	// プレイヤーの方向を向く
-	// ========================================
-
 	UpdateSwordDirection(differenceX);
 
-	// E0は直立モデルで移動するため
-	// 歩行時の前後傾きは使用しない
 	worldTransform_.rotation_.x = 0.0f;
-
-	// ========================================
-	// プレイヤーが攻撃範囲にいる
-	// ========================================
 
 	if (distanceX <= kSwordAttackStartRange && distanceY <= kSwordAttackHeightRange) {
 
-		// 移動を止めて振りかぶり開始
 		velocity_ = {};
 
 		swordAttackPhase_ = SwordAttackPhase::kWindup;
@@ -235,44 +265,28 @@ void Enemy::UpdateSwordEnemy(const Player* player) {
 		return;
 	}
 
-	// ========================================
-	// プレイヤーに向かって横移動
-	// ========================================
-
-	// 高さが大きく違う場合も
-	// 横方向の追跡は継続する
-
 	if (distanceX > kSwordStopDistance) {
 
 		float moveDistance = distanceX - kSwordStopDistance;
 
 		float moveSpeed = (std::min)(kWalkSpeed, moveDistance);
 
-		if (differenceX > 0.0f) {
-
-			velocity_.x = moveSpeed;
-
-		} else {
-
-			velocity_.x = -moveSpeed;
-		}
+		velocity_.x = differenceX > 0.0f ? moveSpeed : -moveSpeed;
 
 		worldTransform_.translation_.x += velocity_.x;
 
 	} else {
 
-		// プレイヤーの手前で停止
 		velocity_ = {};
 	}
 }
 
 // ========================================
-// E0の向き更新
+// E0 ソード敵：向き
 // ========================================
 
 void Enemy::UpdateSwordDirection(float directionX) {
 
-	// ほぼ同じX座標なら向きを変えない
 	if (std::abs(directionX) < 0.01f) {
 		return;
 	}
@@ -290,22 +304,15 @@ void Enemy::UpdateSwordDirection(float directionX) {
 }
 
 // ========================================
-// E0 攻撃アニメーション更新
+// E0 ソード敵：攻撃
 // ========================================
 
 void Enemy::UpdateSwordAttack() {
 
-	// 攻撃中は移動しない
 	velocity_ = {};
-
 	swordAttackTimer_++;
 
 	switch (swordAttackPhase_) {
-
-		// ========================================
-		// 振りかぶり
-		// SordEnemyAttack2
-		// ========================================
 
 	case SwordAttackPhase::kWindup:
 
@@ -317,12 +324,6 @@ void Enemy::UpdateSwordAttack() {
 
 		break;
 
-		// ========================================
-		// 振り下ろし
-		// SordEnemyAttack3
-		// この間だけ剣の攻撃判定を出す
-		// ========================================
-
 	case SwordAttackPhase::kSwing:
 
 		if (swordAttackTimer_ >= kSwordSwingDuration) {
@@ -333,11 +334,6 @@ void Enemy::UpdateSwordAttack() {
 
 		break;
 
-		// ========================================
-		// 振り下ろし終了
-		// SordEnemyAttack4
-		// ========================================
-
 	case SwordAttackPhase::kFinish:
 
 		if (swordAttackTimer_ >= kSwordFinishDuration) {
@@ -347,11 +343,6 @@ void Enemy::UpdateSwordAttack() {
 		}
 
 		break;
-
-		// ========================================
-		// 次の攻撃まで待機
-		// SordEnemyAttack1
-		// ========================================
 
 	case SwordAttackPhase::kCooldown:
 
@@ -369,12 +360,172 @@ void Enemy::UpdateSwordAttack() {
 }
 
 // ========================================
-// 吸い込み処理
+// E1 ファイヤー敵：向き
+// ========================================
+
+void Enemy::UpdateFireDirection(float directionX) {
+
+	if (std::abs(directionX) < 0.01f) {
+		return;
+	}
+
+	fireFacingRight_ = directionX > 0.0f;
+
+	if (fireFacingRight_) {
+
+		worldTransform_.rotation_.y = std::numbers::pi_v<float> / 2.0f;
+
+	} else {
+
+		worldTransform_.rotation_.y = std::numbers::pi_v<float> * 3.0f / 2.0f;
+	}
+}
+
+// ========================================
+// E1 ファイヤー敵：追跡・突進
+// ========================================
+
+void Enemy::UpdateFireEnemy(const Player* player) {
+
+	// E1はモデル自体で動きを表現する
+	worldTransform_.rotation_.x = 0.0f;
+
+	switch (fireDashPhase_) {
+
+		// ========================================
+		// 直立モデルでプレイヤーを追跡
+		// EnemyAttack1
+		// ========================================
+
+	case FireDashPhase::kMove: {
+
+		velocity_ = {};
+
+		if (!player) {
+			return;
+		}
+
+		KamataEngine::Vector3 playerPosition = player->GetWorldPosition();
+
+		KamataEngine::Vector3 enemyPosition = worldTransform_.translation_;
+
+		float differenceX = playerPosition.x - enemyPosition.x;
+
+		float differenceY = playerPosition.y - enemyPosition.y;
+
+		float distanceX = std::abs(differenceX);
+		float distanceY = std::abs(differenceY);
+
+		// プレイヤーの方向を向く
+		UpdateFireDirection(differenceX);
+
+		// プレイヤーの前に到達
+		if (distanceX <= kFireAttackStartRange && distanceY <= kFireAttackHeightRange) {
+
+			velocity_ = {};
+
+			fireDashPhase_ = FireDashPhase::kCharge;
+			fireDashTimer_ = 0;
+
+			return;
+		}
+
+		// プレイヤーの手前まで横移動
+		if (distanceX > kFireStopDistance) {
+
+			float moveDistance = distanceX - kFireStopDistance;
+
+			float moveSpeed = (std::min)(kWalkSpeed, moveDistance);
+
+			velocity_.x = differenceX > 0.0f ? moveSpeed : -moveSpeed;
+
+			worldTransform_.translation_.x += velocity_.x;
+
+		} else {
+
+			velocity_ = {};
+		}
+
+		break;
+	}
+
+		// ========================================
+		// 突進準備
+		// EnemyAttack2
+		// ========================================
+
+	case FireDashPhase::kCharge: {
+
+		velocity_ = {};
+
+		fireDashTimer_++;
+
+		if (fireDashTimer_ >= kFireChargeDuration) {
+
+			fireDashPhase_ = FireDashPhase::kDash;
+			fireDashTimer_ = 0;
+		}
+
+		break;
+	}
+
+		// ========================================
+		// 高速突進
+		// EnemyAttack3
+		// ========================================
+
+	case FireDashPhase::kDash: {
+
+		// 突進開始時の向きを維持
+		float direction = fireFacingRight_ ? 1.0f : -1.0f;
+
+		velocity_.x = direction * kFireDashSpeed;
+		velocity_.y = 0.0f;
+		velocity_.z = 0.0f;
+
+		worldTransform_.translation_.x += velocity_.x;
+
+		fireDashTimer_++;
+
+		if (fireDashTimer_ >= kFireDashDuration) {
+
+			velocity_ = {};
+
+			fireDashPhase_ = FireDashPhase::kRecovery;
+			fireDashTimer_ = 0;
+		}
+
+		break;
+	}
+
+		// ========================================
+		// 突進終了後の待機
+		// EnemyAttack1
+		// ========================================
+
+	case FireDashPhase::kRecovery: {
+
+		velocity_ = {};
+
+		fireDashTimer_++;
+
+		if (fireDashTimer_ >= kFireRecoveryDuration) {
+
+			fireDashPhase_ = FireDashPhase::kMove;
+			fireDashTimer_ = 0;
+		}
+
+		break;
+	}
+	}
+}
+
+// ========================================
+// 吸い込み
 // ========================================
 
 void Enemy::UpdateInhale(const Player* player) {
 
-	// Zキーが押されている間だけ吸い込み
 	if (!player->IsInhaling()) {
 
 		isBeingInhaled_ = false;
@@ -385,7 +536,6 @@ void Enemy::UpdateInhale(const Player* player) {
 
 	KamataEngine::Vector3 enemyPosition = GetWorldPosition();
 
-	// 高さが離れすぎている場合は吸い込まない
 	float heightDifference = std::abs(enemyPosition.y - playerPosition.y);
 
 	if (heightDifference > kInhaleHeightRange) {
@@ -394,7 +544,6 @@ void Enemy::UpdateInhale(const Player* player) {
 		return;
 	}
 
-	// プレイヤーの前方に敵がいるか確認
 	float distanceX = enemyPosition.x - playerPosition.x;
 
 	bool facingRight = player->IsFacingRight();
@@ -425,7 +574,6 @@ void Enemy::UpdateInhale(const Player* player) {
 	isBeingInhaled_ = true;
 	velocity_ = {};
 
-	// プレイヤーの口元を目標にする
 	KamataEngine::Vector3 targetPosition = player->GetInhalePosition();
 
 	float differenceX = targetPosition.x - enemyPosition.x;
@@ -433,10 +581,6 @@ void Enemy::UpdateInhale(const Player* player) {
 	float differenceY = targetPosition.y - enemyPosition.y;
 
 	float distance = std::sqrt(differenceX * differenceX + differenceY * differenceY);
-
-	// ========================================
-	// 口元に到達
-	// ========================================
 
 	if (distance <= kInhaleStopDistance) {
 
@@ -452,12 +596,11 @@ void Enemy::UpdateInhale(const Player* player) {
 		swordAttackPhase_ = SwordAttackPhase::kMove;
 		swordAttackTimer_ = 0;
 
+		fireDashPhase_ = FireDashPhase::kMove;
+		fireDashTimer_ = 0;
+
 		return;
 	}
-
-	// ========================================
-	// 口元へ移動
-	// ========================================
 
 	if (distance > 0.0f) {
 
@@ -465,7 +608,6 @@ void Enemy::UpdateInhale(const Player* player) {
 
 		float moveY = differenceY / distance * kInhaleSpeed;
 
-		// 目標地点を通り越さない
 		if (std::abs(moveX) > std::abs(differenceX)) {
 			moveX = differenceX;
 		}
@@ -509,9 +651,11 @@ void Enemy::StartSpit(bool isFacingRight) {
 
 	spitParameter_ = 0;
 
-	// 攻撃状態をリセット
 	swordAttackPhase_ = SwordAttackPhase::kMove;
 	swordAttackTimer_ = 0;
+
+	fireDashPhase_ = FireDashPhase::kMove;
+	fireDashTimer_ = 0;
 
 	velocity_.x = isFacingRight ? kSpitSpeed : -kSpitSpeed;
 
@@ -542,6 +686,14 @@ void Enemy::UpdateSpit() {
 
 void Enemy::Draw() {
 
+	// ========================================
+	// 追加：吸い込んで保持している敵は描画しない
+	// ========================================
+
+	if (isHeld_) {
+		return;
+	}
+
 	if (!camera_) {
 		return;
 	}
@@ -558,34 +710,29 @@ void Enemy::Draw() {
 
 		switch (swordAttackPhase_) {
 
-		// 直立・移動
 		case SwordAttackPhase::kMove:
 			modelIndex = 0;
 			break;
 
-		// 振りかぶり
 		case SwordAttackPhase::kWindup:
 			modelIndex = 1;
 			break;
 
-		// 振り下ろし途中
 		case SwordAttackPhase::kSwing:
 			modelIndex = 2;
 			break;
 
-		// 振り下ろし終了
 		case SwordAttackPhase::kFinish:
 			modelIndex = 3;
 			break;
 
-		// 攻撃後の待機
 		case SwordAttackPhase::kCooldown:
 			modelIndex = 0;
 			break;
 		}
 
-		// 吸い込み・保持・吐き出し中は直立
-		if (isBeingInhaled_ || isHeld_ || isSpitting_) {
+		if (isBeingInhaled_ || isSpitting_) {
+
 			modelIndex = 0;
 		}
 
@@ -594,8 +741,49 @@ void Enemy::Draw() {
 		}
 	}
 
+	// ========================================
+	// E1 ファイヤー敵
+	// ========================================
+
+	else if (enemyType_ == EnemyType::kFire) {
+
+		int modelIndex = 0;
+
+		switch (fireDashPhase_) {
+
+		// 直立・横移動
+		case FireDashPhase::kMove:
+			modelIndex = 0;
+			break;
+
+		// 突進開始
+		case FireDashPhase::kCharge:
+			modelIndex = 1;
+			break;
+
+		// 突進中
+		case FireDashPhase::kDash:
+			modelIndex = 2;
+			break;
+
+		// 突進後は直立
+		case FireDashPhase::kRecovery:
+			modelIndex = 0;
+			break;
+		}
+
+		if (isBeingInhaled_ || isSpitting_) {
+
+			modelIndex = 0;
+		}
+
+		if (fireModels_[modelIndex]) {
+			drawModel = fireModels_[modelIndex];
+		}
+	}
+
 	if (drawModel) {
-		drawModel->Draw(worldTransform_, *camera_);
+		drawModel->Draw(worldTransform_, *camera_, &objectColor_);
 	}
 }
 
@@ -615,7 +803,7 @@ KamataEngine::Vector3 Enemy::GetWorldPosition() {
 }
 
 // ========================================
-// AABB取得
+// 当たり判定
 // ========================================
 
 AABB Enemy::GetAABB() {
@@ -624,10 +812,7 @@ AABB Enemy::GetAABB() {
 
 	AABB aabb{};
 
-	// ========================================
-	// 敵本体の当たり判定
-	// ========================================
-
+	// 敵本体
 	aabb.min = {
 	    worldPosition.x - kWidth / 2.0f,
 	    worldPosition.y - kHeight / 2.0f,
@@ -641,27 +826,25 @@ AABB Enemy::GetAABB() {
 	};
 
 	// ========================================
-	// E0 振り下ろし中の攻撃判定
+	// E0 剣攻撃
 	// ========================================
 
 	if (enemyType_ == EnemyType::kSword && swordAttackPhase_ == SwordAttackPhase::kSwing && !isBeingInhaled_ && !isHeld_ && !isSpitting_) {
-
-		// 剣の攻撃範囲を本体AABBに追加する
-		// GameSceneの既存衝突判定をそのまま利用
 
 		float attackMinX;
 		float attackMaxX;
 
 		if (swordFacingRight_) {
 
-			attackMinX = worldPosition.x;
-			attackMaxX = worldPosition.x + kSwordAttackRange;
+			attackMinX = worldPosition.x + kWidth / 2.0f;
+
+			attackMaxX = attackMinX + kSwordAttackRange;
 
 		} else {
 
-			attackMinX = worldPosition.x - kSwordAttackRange;
+			attackMaxX = worldPosition.x - kWidth / 2.0f;
 
-			attackMaxX = worldPosition.x;
+			attackMinX = attackMaxX - kSwordAttackRange;
 		}
 
 		float attackMinY = worldPosition.y - kSwordAttackHeight / 2.0f;
@@ -669,9 +852,11 @@ AABB Enemy::GetAABB() {
 		float attackMaxY = worldPosition.y + kSwordAttackHeight / 2.0f;
 
 		aabb.min.x = (std::min)(aabb.min.x, attackMinX);
+
 		aabb.max.x = (std::max)(aabb.max.x, attackMaxX);
 
 		aabb.min.y = (std::min)(aabb.min.y, attackMinY);
+
 		aabb.max.y = (std::max)(aabb.max.y, attackMaxY);
 	}
 
@@ -684,8 +869,14 @@ AABB Enemy::GetAABB() {
 
 void Enemy::OnCollision(const Player* player) {
 
-	// ノックバックはGameSceneから
-	// Player::OnCollision()で処理される
-
 	(void)player;
+
+	// E1は突進がプレイヤーに当たったら停止
+	if (enemyType_ == EnemyType::kFire && fireDashPhase_ == FireDashPhase::kDash) {
+
+		velocity_ = {};
+
+		fireDashPhase_ = FireDashPhase::kRecovery;
+		fireDashTimer_ = 0;
+	}
 }
