@@ -1,63 +1,117 @@
+
+#include "ClearScene.h"
 #include "GameScene.h"
 #include "KamataEngine.h"
+
 #include <Windows.h>
 
-// Windowsアプリでのエントリーポイント(main関数)
+// ========================================
+// Windowsアプリのエントリーポイント
+// ========================================
+
 int WINAPI WinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPSTR, _In_ int) {
 
-	// testメッセージ
+	// エンジン初期化
+	KamataEngine::Initialize(L"LE2C_08_カワダ_リクト_COPY POP");
 
-	// エンジンの初期化
-	KamataEngine::Initialize(L"LE2B_07_カワダ_リクト");
-
-	// 名前空間の使用
 	using namespace KamataEngine;
 
-	// 画面描画
 	DirectXCommon* dxCommon = DirectXCommon::GetInstance();
 
-	// ゲームシーンの生成
-	GameScene* gameScene = new GameScene();
+	// ========================================
+	// シーン生成
+	// ========================================
 
-	// ゲームシーンの初期化
+	GameScene* gameScene = new GameScene();
 	gameScene->Initialize();
 
+	ClearScene* clearScene = nullptr;
+
+	// false = ゲーム中
+	// true  = クリア画面
+	bool isClearScene = false;
+
+	// ========================================
 	// メインループ
+	// ========================================
+
 	while (true) {
 
-		// testメッセージ
-
-		// エンジンの更新
+		// エンジン更新
 		if (KamataEngine::Update()) {
 			break;
 		}
 
-		// ゲームシーンの更新
-		gameScene->Update();
+		// ========================================
+		// シーン更新
+		// ========================================
 
-		// 描画前処理
+		if (!isClearScene) {
+
+			// ゲームシーン
+			if (gameScene) {
+
+				gameScene->Update();
+
+				// ゴール到達を確認
+				if (gameScene->IsGoalReached()) {
+
+					isClearScene = true;
+
+					// クリアシーン生成
+					clearScene = new ClearScene();
+					clearScene->Initialize();
+
+					// ゲームシーン解放
+					delete gameScene;
+					gameScene = nullptr;
+				}
+			}
+
+		} else {
+
+			// クリアシーン
+			if (clearScene) {
+				clearScene->Update();
+			}
+		}
+
+		// ========================================
+		// 描画
+		// ========================================
+
 		dxCommon->PreDraw();
 
-		// 3Dモデル描画前処理
 		Model::PreDraw();
 
-		// ゲームシーンの描画
-		gameScene->Draw();
+		if (!isClearScene) {
 
-		// 3Dモデル描画後処理
+			if (gameScene) {
+				gameScene->Draw();
+			}
+
+		} else {
+
+			if (clearScene) {
+				clearScene->Draw();
+			}
+		}
+
 		Model::PostDraw();
 
-		// 描画後処理
 		dxCommon->PostDraw();
 	}
 
-	// ゲームシーンの解放
-	delete gameScene;
+	// ========================================
+	// 解放
+	// ========================================
 
-	// nullptrを代入
+	delete gameScene;
 	gameScene = nullptr;
 
-	// エンジンの終了処理
+	delete clearScene;
+	clearScene = nullptr;
+
 	KamataEngine::Finalize();
 
 	return 0;

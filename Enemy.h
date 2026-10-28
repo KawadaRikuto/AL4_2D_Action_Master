@@ -5,6 +5,7 @@
 #include "KamataEngine.h"
 
 class Player;
+class MapChipField;
 
 enum class EnemyType {
 	kNormal,
@@ -37,17 +38,12 @@ public:
 
 	void StartSpit(bool isFacingRight);
 
-	// E1の突進中か
 	bool IsFireDashing() const { return enemyType_ == EnemyType::kFire && fireDashPhase_ == FireDashPhase::kDash && !isBeingInhaled_ && !isHeld_ && !isSpitting_; }
 
 private:
 	void UpdateInhale(const Player* player);
 	void UpdateSpit();
 	void UpdateHeldPosition(const Player* player);
-
-	// ========================================
-	// E0 ソード敵
-	// ========================================
 
 	enum class SwordAttackPhase {
 		kMove,
@@ -61,10 +57,6 @@ private:
 	void UpdateSwordAttack();
 	void UpdateSwordDirection(float directionX);
 
-	// ========================================
-	// E1 ファイヤー敵
-	// ========================================
-
 	enum class FireDashPhase {
 		kMove,
 		kCharge,
@@ -75,11 +67,21 @@ private:
 	void UpdateFireEnemy(const Player* player);
 	void UpdateFireDirection(float directionX);
 
+	// 重力・床・壁との衝突
+	void ApplyMapPhysics();
+
+	// 指定位置がブロックと重なっているか
+	bool IsBlockCollision(float x, float y) const;
+
+	// 壁に当たった時の処理
+	void OnWallHit();
+
 private:
 	KamataEngine::WorldTransform worldTransform_;
 
 	KamataEngine::Model* model_ = nullptr;
 	KamataEngine::Camera* camera_ = nullptr;
+	MapChipField* mapChipField_ = nullptr;
 
 	EnemyType enemyType_ = EnemyType::kNormal;
 
@@ -110,13 +112,8 @@ private:
 
 	uint32_t spitParameter_ = 0;
 
-	// 敵の色
 	KamataEngine::ObjectColor objectColor_;
 	KamataEngine::Vector4 color_ = {1.0f, 1.0f, 1.0f, 1.0f};
-
-	// ========================================
-	// E0 ソード敵のモデル
-	// ========================================
 
 	static constexpr int kSwordModelCount = 4;
 	KamataEngine::Model* swordModels_[kSwordModelCount] = {};
@@ -128,8 +125,6 @@ private:
 	static inline const float kSwordStopDistance = 1.2f;
 	static inline const float kSwordAttackStartRange = 1.35f;
 	static inline const float kSwordAttackHeightRange = 0.8f;
-
-	// 体の前面から0.5マス
 	static inline const float kSwordAttackRange = 0.5f;
 	static inline const float kSwordAttackHeight = 0.9f;
 
@@ -140,13 +135,6 @@ private:
 
 	bool swordFacingRight_ = false;
 
-	// ========================================
-	// E1 ファイヤー敵のモデル
-	// ========================================
-
-	// EnemyAttack1：直立・移動
-	// EnemyAttack2：突進準備
-	// EnemyAttack3：突進中
 	static constexpr int kFireModelCount = 3;
 	KamataEngine::Model* fireModels_[kFireModelCount] = {};
 
@@ -156,15 +144,31 @@ private:
 
 	bool fireFacingRight_ = false;
 
-	// プレイヤーに近づいたら突進準備
 	static inline const float kFireStopDistance = 2.0f;
 	static inline const float kFireAttackStartRange = 2.1f;
 	static inline const float kFireAttackHeightRange = 0.8f;
-
-	// プレイヤーの突進と同じ速度・時間
 	static inline const float kFireDashSpeed = 0.7f;
 
 	static inline const uint32_t kFireChargeDuration = 10;
 	static inline const uint32_t kFireDashDuration = 10;
 	static inline const uint32_t kFireRecoveryDuration = 30;
+
+	// ========================================
+	// 追加：物理処理
+	// ========================================
+
+	static inline const float kGravityAcceleration = 0.05f;
+	static inline const float kLimitFallSpeed = 0.5f;
+
+	float fallSpeed_ = 0.0f;
+	bool onGround_ = false;
+
+	// 1回の移動を細分化して壁のすり抜けを防ぐ
+	static inline const float kCollisionStep = 0.1f;
+
+	// 壁に当たった後、すぐ追跡方向に戻らないための時間
+	static inline const int kWallTurnDuration = 40;
+
+	int wallTurnTimer_ = 0;
+	bool wallMoveRight_ = false;
 };

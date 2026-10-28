@@ -33,6 +33,8 @@ public:
 	// ヒットエフェクト生成
 	void CreateHitEffect(const KamataEngine::Vector3& position);
 
+	bool IsGoalReached() const { return isGoalReached_; }
+
 private:
 	// ブロック生成
 	void GenerateBlocks();

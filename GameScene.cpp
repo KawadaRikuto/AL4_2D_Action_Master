@@ -288,6 +288,7 @@ void GameScene::GenerateBlocks() {
 // ゴール生成
 // ========================================
 
+
 void GameScene::GenerateGoals() {
 
 	if (!mapChipField_) {
@@ -302,14 +303,18 @@ void GameScene::GenerateGoals() {
 
 		transform->translation_ = mapChipField_->GetMapChipPositionByIndex(goalData.xIndex, goalData.yIndex);
 
-		// モデルの大きさを変える場合はここで調整
+		// ゴールの大きさ
 		transform->scale_ = {1.0f, 1.0f, 1.0f};
+
+		// X軸に90度回転
+		transform->rotation_.x = 3.1415926535f / 2.0f;
 
 		UpdateWorldTransform(*transform);
 
 		goalTransforms_.push_back(transform);
 	}
 }
+
 
 // ========================================
 // マップオブジェクト解放

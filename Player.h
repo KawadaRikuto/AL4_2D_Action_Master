@@ -22,19 +22,20 @@ public:
 
 	void SetMapChipField(MapChipField* mapChipField) { mapChipField_ = mapChipField; }
 
+	// 敵がマップとの衝突判定を行うために追加
+	MapChipField* GetMapChipField() const { return mapChipField_; }
+
 	KamataEngine::Vector3 GetWorldPosition() const;
 	AABB GetAABB();
 
 	void OnCollision(const Enemy* enemy);
 
 	bool IsInhaling() const { return isInhaling_; }
-
 	bool IsFacingRight() const { return lrDirection_ == LRDirection::kRight; }
 
 	KamataEngine::Vector3 GetInhalePosition() const;
 
 	bool IsAttack() const { return isAttack_; }
-
 	void RequestKnockback();
 
 	void SetCopyAbility(EnemyType ability) { copyAbility_ = ability; }
@@ -105,21 +106,17 @@ private:
 
 	KamataEngine::Model* model_ = nullptr;
 
-	// 通常歩行モデル
 	KamataEngine::Model* idleModel_ = nullptr;
 
 	static constexpr int kWalkModelCount = 2;
 	KamataEngine::Model* walkModels_[kWalkModelCount] = {};
 
-	// ソード歩行モデル
 	static constexpr int kSwordWalkModelCount = 3;
 	KamataEngine::Model* swordWalkModels_[kSwordWalkModelCount] = {};
 
-	// ソード攻撃モデル
 	static constexpr int kSwordAttackModelCount = 3;
 	KamataEngine::Model* swordAttackModels_[kSwordAttackModelCount] = {};
 
-	// ファイヤー突進モデル
 	static constexpr int kFireAttackModelCount = 3;
 	KamataEngine::Model* fireAttackModels_[kFireAttackModelCount] = {};
 
@@ -135,7 +132,6 @@ private:
 
 	static constexpr int kSwordAttackDuration = kSwordAttackModelCount * kSwordAttackFrameInterval;
 
-	// 体の前面から0.5マス
 	static constexpr float kSwordAttackRange = 0.5f;
 
 	KamataEngine::Camera* camera_ = nullptr;
@@ -152,7 +148,7 @@ private:
 	static inline const float kAttenuation = 0.1f;
 	static inline const float kAttenuationLanding = 0.1f;
 	static inline const float kAttenuationWall = 0.1f;
-	static inline const float kLimitRunSpeed = 0.2f;
+	static inline const float kLimitRunSpeed = 0.1f;
 
 	LRDirection lrDirection_ = LRDirection::kRight;
 
@@ -166,7 +162,7 @@ private:
 	static inline const float kGravityAcceleration = 0.05f;
 	static inline const float kLimitFallSpeed = 0.5f;
 
-	static inline const float kJumpAcceleration = 1.0f;
+	static inline const float kJumpAcceleration = 0.5f;
 
 	bool isInhaling_ = false;
 

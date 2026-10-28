@@ -835,18 +835,62 @@ void Player::WallCollision(const CollisionMapInfo& info) {
 // 接地状態切り替え
 // ========================================
 
+
 void Player::SwitchGroundState(const CollisionMapInfo& info) {
+
+	// ========================================
+	// 着地判定
+	// ========================================
 
 	if (info.landing) {
 
 		onGround_ = true;
 		velocity_.y = 0.0f;
 
-	} else if (velocity_.y < 0.0f) {
+		return;
+	}
+
+	// すでに空中ならそのまま
+	if (!onGround_) {
+		return;
+	}
+
+	if (!mapChipField_) {
+		onGround_ = false;
+		return;
+	}
+
+	// ========================================
+	// 足元のブロック確認
+	// ========================================
+
+	Vector3 position = worldTransform_.translation_;
+
+	// 足元より少し下を調べる
+	position.y -= 0.05f;
+
+	Vector3 leftBottom = CornerPosition(position, kLeftBottom);
+
+	Vector3 rightBottom = CornerPosition(position, kRightBottom);
+
+	MapChipField::IndexSet leftIndex = mapChipField_->GetMapChipIndexSetByPosition(leftBottom);
+
+	MapChipField::IndexSet rightIndex = mapChipField_->GetMapChipIndexSetByPosition(rightBottom);
+
+	MapChipType leftType = mapChipField_->GetMapChipTypeByIndex(leftIndex.xIndex, leftIndex.yIndex);
+
+	MapChipType rightType = mapChipField_->GetMapChipTypeByIndex(rightIndex.xIndex, rightIndex.yIndex);
+
+	// ========================================
+	// 足場から離れた場合
+	// ========================================
+
+	if (leftType != MapChipType::kBlock && rightType != MapChipType::kBlock) {
 
 		onGround_ = false;
 	}
 }
+
 
 // ========================================
 // 四隅の座標
