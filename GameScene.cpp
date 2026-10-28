@@ -24,11 +24,8 @@ KamataEngine::Matrix4x4 Multiply(const KamataEngine::Matrix4x4& m1, const Kamata
 	KamataEngine::Matrix4x4 result{};
 
 	for (int row = 0; row < 4; ++row) {
-
 		for (int column = 0; column < 4; ++column) {
-
 			for (int i = 0; i < 4; ++i) {
-
 				result.m[row][column] += m1.m[row][i] * m2.m[i][column];
 			}
 		}
@@ -153,7 +150,6 @@ void GameScene::Initialize() {
 
 	modelDeathParticle_ = KamataEngine::Model::CreateFromOBJ("deathParticle", true);
 
-	// ゴールモデル
 	modelGoal_ = KamataEngine::Model::CreateFromOBJ("Goal", true);
 
 	// カメラ初期化
@@ -266,8 +262,8 @@ void GameScene::GenerateBlocks() {
 
 		for (uint32_t x = 0; x < MapChipField::kNumBlockHorizontal; ++x) {
 
-			// B0だけを通常ブロックとして生成
 			if (mapChipField_->GetMapChipTypeByIndex(x, y) != MapChipType::kBlock) {
+
 				continue;
 			}
 
@@ -288,7 +284,6 @@ void GameScene::GenerateBlocks() {
 // ゴール生成
 // ========================================
 
-
 void GameScene::GenerateGoals() {
 
 	if (!mapChipField_) {
@@ -303,7 +298,6 @@ void GameScene::GenerateGoals() {
 
 		transform->translation_ = mapChipField_->GetMapChipPositionByIndex(goalData.xIndex, goalData.yIndex);
 
-		// ゴールの大きさ
 		transform->scale_ = {1.0f, 1.0f, 1.0f};
 
 		// X軸に90度回転
@@ -315,14 +309,12 @@ void GameScene::GenerateGoals() {
 	}
 }
 
-
 // ========================================
 // マップオブジェクト解放
 // ========================================
 
 void GameScene::ClearMapObjects() {
 
-	// ブロックを解放
 	for (std::vector<KamataEngine::WorldTransform*>& line : worldTransformBlocks_) {
 
 		for (KamataEngine::WorldTransform* transform : line) {
@@ -332,8 +324,8 @@ void GameScene::ClearMapObjects() {
 
 	worldTransformBlocks_.clear();
 
-	// ゴールを解放
 	for (KamataEngine::WorldTransform* transform : goalTransforms_) {
+
 		delete transform;
 	}
 
@@ -349,24 +341,19 @@ void GameScene::ResetGame() {
 	isDebugCameraActive_ = false;
 	isGoalReached_ = false;
 
-	// デスパーティクル解放
 	delete deathParticles_;
 	deathParticles_ = nullptr;
 
-	// 以前の敵を解放
 	for (Enemy* enemy : enemies_) {
 		delete enemy;
 	}
 
 	enemies_.clear();
 
-	// 以前のマップを解放
 	ClearMapObjects();
 
-	// CSVを再読み込み
 	mapChipField_->LoadMapChipCsv("Resources/blocks.csv");
 
-	// プレイヤー再生成
 	delete player_;
 	player_ = nullptr;
 
@@ -378,14 +365,11 @@ void GameScene::ResetGame() {
 
 	player_->SetMapChipField(mapChipField_);
 
-	// 敵を再生成
 	SpawnEnemies();
 
-	// ブロック・ゴールを再生成
 	GenerateBlocks();
 	GenerateGoals();
 
-	// カメラを初期位置に戻す
 	cameraController_->SetTarget(player_);
 	cameraController_->Reset();
 
@@ -413,19 +397,16 @@ void GameScene::Update() {
 
 #ifdef _DEBUG
 
-	// TABキーでデバッグカメラ切り替え
 	if (input->TriggerKey(DIK_TAB)) {
 		isDebugCameraActive_ = !isDebugCameraActive_;
 	}
 
 #endif
 
-	// プレイヤー更新
 	if (player_) {
 		player_->Update();
 	}
 
-	// 敵更新
 	for (Enemy* enemy : enemies_) {
 
 		if (enemy) {
@@ -447,7 +428,6 @@ void GameScene::Update() {
 			continue;
 		}
 
-		// 消滅した敵を削除
 		if (enemy->IsFinished()) {
 
 			delete enemy;
@@ -507,7 +487,6 @@ void GameScene::Update() {
 		}
 	}
 
-	// ゴール行列更新
 	for (KamataEngine::WorldTransform* transform : goalTransforms_) {
 
 		if (transform) {
@@ -563,7 +542,6 @@ void GameScene::CheckAllCollisions() {
 			Enemy* enemy = *it;
 
 			if (!enemy) {
-
 				it = enemies_.erase(it);
 				continue;
 			}
@@ -578,14 +556,61 @@ void GameScene::CheckAllCollisions() {
 
 			if (IsCollision(swordAABB, enemyAABB)) {
 
-				// プレイヤーの剣が命中
+				// 剣攻撃が命中
 				if (cameraController_ && !isDebugCameraActive_) {
+
 					cameraController_->StartShake(0.18f, 10);
 				}
 
 				delete enemy;
 				it = enemies_.erase(it);
 
+				continue;
+			}
+
+			++it;
+		}
+	}
+
+	// ========================================
+	// ファイヤー体当たりと敵
+	// ========================================
+
+	if (player_ && player_->IsFireDashAttacking()) {
+
+		// プレイヤーの体全体を攻撃判定にする
+		AABB dashAABB = player_->GetAABB();
+
+		for (auto it = enemies_.begin(); it != enemies_.end();) {
+
+			Enemy* enemy = *it;
+
+			if (!enemy) {
+				it = enemies_.erase(it);
+				continue;
+			}
+
+			if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
+
+				++it;
+				continue;
+			}
+
+			AABB enemyAABB = enemy->GetAABB();
+
+			if (IsCollision(dashAABB, enemyAABB)) {
+
+				// 命中時のカメラシェイク
+				if (cameraController_ && !isDebugCameraActive_) {
+
+					cameraController_->StartShake(0.18f, 10);
+				}
+
+				// 敵を倒す
+				delete enemy;
+				it = enemies_.erase(it);
+
+				// 体当たりは中断しない
 				continue;
 			}
 
@@ -692,11 +717,7 @@ void GameScene::CheckAllCollisions() {
 
 			if (IsCollision(playerAABB, goalAABB)) {
 
-				// ゴール到達
 				isGoalReached_ = true;
-
-				// クリア画面への遷移は
-				// 今後ここに追加する
 				break;
 			}
 		}
@@ -713,6 +734,7 @@ void GameScene::CheckAllCollisions() {
 		}
 
 		if (enemy->IsBeingInhaled() || enemy->IsHeld() || enemy->IsSpitting() || enemy->IsFinished()) {
+
 			continue;
 		}
 
@@ -720,8 +742,15 @@ void GameScene::CheckAllCollisions() {
 
 		if (IsCollision(playerAABB, enemyAABB)) {
 
+			// ファイヤー体当たり中は
+			// プレイヤーへの接触ダメージを無効化
+			if (player_->IsFireDashAttacking()) {
+				continue;
+			}
+
 			// E1は突進中のみ当たり判定
 			if (enemy->GetEnemyType() == EnemyType::kFire && !enemy->IsFireDashing()) {
+
 				continue;
 			}
 

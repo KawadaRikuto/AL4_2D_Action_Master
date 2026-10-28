@@ -42,9 +42,14 @@ public:
 
 	EnemyType GetCopyAbility() const { return copyAbility_; }
 
+	// ソード攻撃中かどうか
 	bool IsSwordAttackActive() const { return copyAbility_ == EnemyType::kSword && isSwordAttacking_; }
 
 	AABB GetSwordAttackAABB() const;
+
+	// ファイヤー体当たりの攻撃判定
+	// 溜め・硬直中は攻撃扱いにしない
+	bool IsFireDashAttacking() const { return copyAbility_ == EnemyType::kFire && fireDashPhase_ == FireDashPhase::kDash; }
 
 private:
 	enum class LRDirection {

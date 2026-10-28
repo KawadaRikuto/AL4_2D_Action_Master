@@ -2,6 +2,7 @@
 #pragma once
 
 #include "KamataEngine.h"
+#include "Skydome.h"
 
 class TitleScene {
 public:
@@ -20,6 +21,9 @@ private:
 	// サブタイトルモデル
 	KamataEngine::Model* modelSub_ = nullptr;
 
+	// 天球モデル
+	KamataEngine::Model* modelSkydome_ = nullptr;
+
 	// タイトルの座標
 	KamataEngine::WorldTransform worldTransform_;
 
@@ -28,6 +32,9 @@ private:
 
 	// カメラ
 	KamataEngine::Camera camera_;
+
+	// 天球
+	Skydome* skydome_ = nullptr;
 
 	// シーン終了フラグ
 	bool finished_ = false;
